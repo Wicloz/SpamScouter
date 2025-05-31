@@ -27,7 +27,7 @@ class SpamRegressor(nn.Module):
         return result
 
 
-def train_single_model(vectors, labels):
+def train_regressor_for_user(vectors, labels):
     model = SpamRegressor()
     dataset = Dataset.from_dict({'vectors': vectors, 'labels': labels})
     trainer = Trainer(model=model, train_dataset=dataset)
@@ -35,32 +35,7 @@ def train_single_model(vectors, labels):
     return model
 
 
-def train_all_models(path, connector, tokenizer, vectorizer):
-    global_vectors = []
-    global_labels = []
-
-    recipients = list(connector.recipients())
-    for recipient in recipients:
-        recipient_vectors = []
-        recipient_labels = []
-
-        for message in connector.iterate_messages_for_user(recipient):
-            if message.label is not None:
-                vector = vectorizer.infer_vector(tokenizer.encode(message.text).tokens)
-                recipient_vectors.append(vector)
-                recipient_labels.append([float(message.label)])
-                global_vectors.append(vector)
-                global_labels.append([float(message.label)])
-
-        if len(recipients) > 1:
-            model = train_single_model(recipient_vectors, recipient_labels)
-            torch.save(model.state_dict(), path / recipient / 'regressor.pt')
-
-    model = train_single_model(global_vectors, global_labels)
-    torch.save(model.state_dict(), path / 'regressor.pt')
-
-
-def load_model_for_user(path, recipient=None):
+def load_regressor_for_user(path, recipient=None):
     model = SpamRegressor()
 
     if recipient is not None:
