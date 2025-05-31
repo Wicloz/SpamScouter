@@ -26,22 +26,13 @@ class SpamRegressor(nn.Module):
 
         return result
 
+    def train(self, vectors, labels):
+        dataset = Dataset.from_dict({'vectors': vectors, 'labels': labels})
+        trainer = Trainer(model=self, train_dataset=dataset)
+        trainer.train()
 
-def train_regressor_for_user(vectors, labels):
-    model = SpamRegressor()
-    dataset = Dataset.from_dict({'vectors': vectors, 'labels': labels})
-    trainer = Trainer(model=model, train_dataset=dataset)
-    trainer.train()
-    return model
+    def save(self, path):
+        torch.save(self.state_dict(), path)
 
-
-def load_regressor_for_user(path, recipient=None):
-    model = SpamRegressor()
-
-    if recipient is not None:
-        path = path / recipient
-
-    model.load_state_dict(torch.load(path / 'regressor.pt'))
-    model.eval()
-
-    return model
+    def load(self, path):
+        self.load_state_dict(torch.load(path))

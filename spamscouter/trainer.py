@@ -2,7 +2,7 @@ from .connectors.imap import ConnectorIMAP
 from tokenizers import BertWordPieceTokenizer
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from gensim.utils import RULE_KEEP
-from .models import train_regressor_for_user
+from .models import SpamRegressor
 import torch
 from tempfile import TemporaryDirectory
 from shutil import move, rmtree
@@ -56,11 +56,13 @@ def train(config):
                     global_labels.append([float(message.label)])
 
             if len(recipients) > 1:
-                model = train_regressor_for_user(recipient_vectors, recipient_labels)
-                torch.save(model.state_dict(), temp / recipient / 'regressor.pt')
+                model = SpamRegressor()
+                model.train(recipient_vectors, recipient_labels)
+                model.save(temp / recipient / 'regressor.pt')
 
-        model = train_regressor_for_user(global_vectors, global_labels)
-        torch.save(model.state_dict(), temp / 'regressor.pt')
+        model = SpamRegressor()
+        model.train(global_vectors, global_labels)
+        model.save(temp / 'regressor.pt')
 
     for item in config.STORAGE.iterdir():
         rmtree(item)
