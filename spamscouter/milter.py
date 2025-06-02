@@ -1,12 +1,11 @@
 import Milter
 from Milter import decode
-import email
 from tokenizers import BertWordPieceTokenizer
 from gensim.models.doc2vec import Doc2Vec
 import torch
 from argparse import ArgumentParser
 from pathlib import Path
-from .message import message_to_text
+from .message import parse_milter_message
 from .models import SpamRegressor
 
 
@@ -49,7 +48,7 @@ class SpamScouterMilter(Milter.Base):
 
     def eom(self):
         # convert the message to text
-        text = message_to_text(email.message_from_bytes(self.message))
+        text = parse_milter_message(self.message)
         print(text)
 
         # convert the text to a vector
