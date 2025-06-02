@@ -3,7 +3,6 @@ from tokenizers import BertWordPieceTokenizer
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from gensim.utils import RULE_KEEP
 from .models import SpamRegressor
-import torch
 from tempfile import TemporaryDirectory
 from shutil import move, rmtree
 from pathlib import Path
