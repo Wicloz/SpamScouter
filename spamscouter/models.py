@@ -26,7 +26,7 @@ class SpamRegressor(nn.Module):
 
         return result
 
-    def train(self, vectors, labels):
+    def fit(self, vectors, labels):
         dataset = Dataset.from_dict({'vectors': vectors, 'labels': labels})
         trainer = Trainer(model=self, train_dataset=dataset)
         trainer.train()

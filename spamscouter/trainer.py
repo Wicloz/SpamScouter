@@ -57,11 +57,11 @@ def train(config):
 
             if len(recipients) > 1:
                 model = SpamRegressor()
-                model.train(recipient_vectors, recipient_labels)
+                model.fit(recipient_vectors, recipient_labels)
                 model.save(temp / recipient / 'regressor.pt')
 
         model = SpamRegressor()
-        model.train(global_vectors, global_labels)
+        model.fit(global_vectors, global_labels)
         model.save(temp / 'regressor.pt')
 
     for item in config.STORAGE.iterdir():
