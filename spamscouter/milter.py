@@ -1,6 +1,6 @@
 import Milter
 from Milter import decode
-from tokenizers import BertWordPieceTokenizer
+from tokenizers import Tokenizer
 from gensim.models.doc2vec import Doc2Vec
 import torch
 from argparse import ArgumentParser
@@ -78,8 +78,8 @@ if __name__ == '__main__':
     parser.add_argument('--address', type=str, default='3639@localhost')
     args = parser.parse_args()
 
-    TOKENIZER = BertWordPieceTokenizer(args.model_store_dir / 'tokenizer.json')
-    VECTORIZER = Doc2Vec.load(args.model_store_dir / 'doc2vec.model')
+    TOKENIZER = Tokenizer.from_file(str(args.model_store_dir / 'tokenizer.json'))
+    VECTORIZER = Doc2Vec.load(str(args.model_store_dir / 'doc2vec.model'))
 
     REGRESSOR = SpamRegressor()
     REGRESSOR.load(args.model_store_dir / 'regressor.pt')
