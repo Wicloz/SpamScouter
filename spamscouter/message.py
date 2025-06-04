@@ -1,5 +1,5 @@
 import email
-from bs4 import BeautifulSoup, UnicodeDammit
+from bs4 import UnicodeDammit
 
 
 def _part_to_text(part):
@@ -10,8 +10,7 @@ def _part_to_text(part):
 
     if not text:
         return ''
-
-    return BeautifulSoup(text, 'lxml').get_text()
+    return text
 
 
 def _message_to_text(message):
