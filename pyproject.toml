@@ -1,2 +1,6 @@
 [project]
 name = "spamscouter"
+version = "1.0"
+
+[tool.setuptools]
+packages = ["spamscouter"]
