@@ -63,8 +63,11 @@ def train(config):
         model.fit(global_vectors, global_labels)
         model.save(temp / 'regressor.pt')
 
-    for item in config.STORAGE.iterdir():
-        rmtree(item)
+        for item in config.STORAGE.iterdir():
+            if item.is_dir():
+                rmtree(item)
+            else:
+                item.unlink()
 
-    for item in temp.iterdir():
-        move(item, config.STORAGE / item.name)
+        for item in temp.iterdir():
+            move(item, config.STORAGE / item.name)
