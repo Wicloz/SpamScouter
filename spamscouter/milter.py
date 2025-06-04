@@ -47,21 +47,22 @@ class SpamScouterMilter(Milter.Base):
         return Milter.CONTINUE
 
     def eom(self):
+        # do some logging
+        print('Processing email for recipients:', self.recipients)
+
         # convert the message to text
         text = parse_milter_message(self.message)
-        print(text)
+        print('>', len(text), 'characters after processing.')
 
-        # convert the text to a vector
-        vector = list(VECTORIZER.infer_vector(TOKENIZER.encode(text).tokens))
-        print(vector)
+        # convert the text to a tensor
+        tensor = torch.tensor(list(VECTORIZER.infer_vector(TOKENIZER.encode(text).tokens)))
 
         # predict the global spam probability
         with torch.no_grad():
-            tensor = torch.tensor(vector, dtype=torch.float32).view(1, -1)
-            spam_probability = REGRESSOR(tensor).item()
+            spam_probability = REGRESSOR(tensor)['logits'].item()
 
         # add the spam probability as a header
-        print('Spam Probability:', spam_probability)
+        print('> Spam Probability:', spam_probability)
         self.addheader('X-Spam-Scouter-Probability', str(spam_probability))
 
         # reset instance variables, more emails could be sent over this connection
@@ -86,4 +87,5 @@ if __name__ == '__main__':
     REGRESSOR.eval()
 
     Milter.factory = SpamScouterMilter
+    print('Done loading models, starting SpamScouter milter ...')
     Milter.runmilter('SpamScouterMilter', f'{args.protocol}:{args.address}', 60)
