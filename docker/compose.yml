@@ -1,0 +1,13 @@
+services:
+
+  postfix:
+    build: postfix
+    ports:
+      - 12345:25
+
+  milter:
+    build:
+      dockerfile: milter.dockerfile
+      context: ../
+    volumes:
+      - ../models/:/var/lib/spamscouter/

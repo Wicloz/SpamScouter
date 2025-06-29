@@ -1,0 +1,7 @@
+smtpd_milters = inet:milter:3639
+non_smtpd_milters = inet:milter:3639
+
+maillog_file = /dev/stdout
+compatibility_level = 2
+alias_maps =
+myhostname = spamscouter.testing
