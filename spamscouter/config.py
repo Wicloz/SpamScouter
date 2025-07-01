@@ -1,8 +1,9 @@
 from abc import ABC
+from pathlib import Path
 
 
 class BaseConfig(ABC):
-    STORAGE = None
+    STORAGE = Path('/var/lib/spamscouter/')
     CONNECTOR = None
 
     @staticmethod
