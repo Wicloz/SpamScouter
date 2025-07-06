@@ -28,7 +28,7 @@ class ConnectorIMAP(ConnectorBase):
             uid = int(re.search(r'UID (\d+)', header).group(1))
             read = re.search(r'FLAGS \([^\(\)]*\\Seen[^\(\)]*\)', header) is not None
             message = response[0][1]
-            yield message_builder(message, read, uid, folder, flags, self.settings.get_spam_status, self.config['message_processing_method'])
+            yield message_builder(message, read, f'{folder}/{uid}', folder, flags, self.settings.get_spam_status, self.config['message_processing_method'])
 
     def iterate_messages_for_user(self, recipient):
         with self._mailbox(recipient) as mailbox:
