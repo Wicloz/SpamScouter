@@ -2,7 +2,8 @@ from abc import ABC, abstractmethod
 
 
 class ConnectorBase(ABC):
-    def __init__(self, config):
+    def __init__(self, settings, config):
+        self.settings = settings
         self.config = config
 
     @abstractmethod
@@ -26,3 +27,11 @@ class ConnectorBase(ABC):
         for recipient in self.recipients():
             total_count += self.estimate_message_count_for_user(recipient)
         return total_count
+
+    @abstractmethod
+    def iterate_all_message_accessors(self):
+        pass
+
+    @abstractmethod
+    def fetch_messages_for_accessors(self, accessors):
+        pass

@@ -7,6 +7,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 from .message import parse_milter_message
 from .models import SpamRegressor
+import json
 
 
 class SpamScouterMilter(Milter.Base):
@@ -51,7 +52,7 @@ class SpamScouterMilter(Milter.Base):
         print('Processing email for recipients:', self.recipients)
 
         # convert the message to text
-        text = parse_milter_message(self.message)
+        text = parse_milter_message(CONFIG['message_processing_method'], self.message)
         print('>', len(text), 'characters after processing.')
 
         # convert the text to a tensor
@@ -79,10 +80,13 @@ if __name__ == '__main__':
     parser.add_argument('--address', type=str, default='3639@localhost')
     args = parser.parse_args()
 
+    with open(args.model_store_dir / 'config.json', 'r') as fp:
+        CONFIG = json.load(fp)
+
     TOKENIZER = Tokenizer.from_file(str(args.model_store_dir / 'tokenizer.json'))
     VECTORIZER = Doc2Vec.load(str(args.model_store_dir / 'doc2vec.model'))
 
-    REGRESSOR = SpamRegressor()
+    REGRESSOR = SpamRegressor(CONFIG)
     REGRESSOR.load(args.model_store_dir / 'regressor.pt')
     REGRESSOR.eval()
 

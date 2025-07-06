@@ -2,7 +2,7 @@ from abc import ABC
 from pathlib import Path
 
 
-class BaseConfig(ABC):
+class BaseSettings(ABC):
     STORAGE = Path('/var/lib/spamscouter/')
     CONNECTOR = None
 

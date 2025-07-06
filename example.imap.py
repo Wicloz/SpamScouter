@@ -1,8 +1,8 @@
-from spamscouter.config import BaseConfig
-from spamscouter.trainer import train
+from spamscouter.settings import BaseSettings
+from spamscouter.trainer import Trainer
 
 
-class ScouterConfig(BaseConfig):
+class ScouterSettings(BaseSettings):
     CONNECTOR = 'IMAP'
 
     imap_host = 'example.net'
@@ -20,4 +20,4 @@ class ScouterConfig(BaseConfig):
 
 
 if __name__ == '__main__':
-    train(ScouterConfig())
+    Trainer(ScouterSettings()).build()

@@ -6,6 +6,11 @@ from .models import SpamRegressor
 from tempfile import TemporaryDirectory
 from shutil import move, rmtree
 from pathlib import Path
+from ConfigSpace import ConfigurationSpace, Categorical, Integer, Float, Beta
+from random import shuffle
+from .message import MESSAGE_PROCESS_METHODS
+import json
+from tqdm import trange, tqdm
 
 
 CONNECTORS = {
@@ -13,61 +18,143 @@ CONNECTORS = {
 }
 
 
-def train(config):
-    with TemporaryDirectory() as temp:
-        temp = Path(temp)
+CS = ConfigurationSpace()
+CS.add(Integer('doc2vec_output_size', (100, 1000), default=200))
+CS.add(Integer('hidden_layer_size', (100, 10000), default=2000))
+CS.add(Categorical('message_processing_method', MESSAGE_PROCESS_METHODS.keys(), default='unicode'))
+CS.add(Float('vocab_size_per_message', (0, 2), default=1, distribution=Beta(4, 4)))
 
-        connector = CONNECTORS[config.CONNECTOR](config)
 
+class Trainer:
+    def __init__(self, settings):
+        self.settings = settings
+
+    def _make_tokenizer_and_vectorizer(self, config, message_iterator_fn, message_count_fn, seed):
         tokenizer = BertWordPieceTokenizer()
-        tokenizer.train_from_iterator(message.text for message in connector.iterate_all_messages())
-        tokenizer.save(str(temp / 'tokenizer.json'))
+        tokenizer.train_from_iterator(
+            (message.text for message in message_iterator_fn()),
+            vocab_size=int(round(message_count_fn() * config['vocab_size_per_message'])),
+        )
 
-        vectorizer = Doc2Vec(vector_size=200)
+        seed_kwargs = {}
+        if seed is not None:
+            seed_kwargs['seed'] = seed
+            seed_kwargs['workers'] = 1
+        vectorizer = Doc2Vec(vector_size=config['doc2vec_output_size'], **seed_kwargs)
 
         vectorizer.build_vocab(
             [TaggedDocument([key], [value]) for key, value in tokenizer.get_vocab().items()],
             trim_rule=lambda _1, _2, _3: RULE_KEEP,
         )
 
-        for _ in range(2):
+        for _ in trange(3, desc='doc2vec Epochs'):
             vectorizer.train(
-                (TaggedDocument(tokenizer.encode(message.text).tokens, [message.uid]) for message in connector.iterate_all_messages()),
-                epochs=1, total_examples=connector.estimate_total_message_count(),
+                tqdm(TaggedDocument(tokenizer.encode(message.text).tokens, [message.uid]) for message in message_iterator_fn()),
+                epochs=1, total_examples=message_count_fn(),
             )
 
-        vectorizer.save(str(temp / 'doc2vec.model'))
+        return tokenizer, vectorizer
 
-        global_vectors = []
-        global_labels = []
+    def build(self):
+        with TemporaryDirectory() as temp:
+            temp = Path(temp)
 
-        recipients = list(connector.recipients())
-        for recipient in recipients:
-            recipient_vectors = []
-            recipient_labels = []
+            config = CS.get_default_configuration()
+            connector = CONNECTORS[self.settings.CONNECTOR](self.settings, config)
 
-            for message in connector.iterate_messages_for_user(recipient):
-                if message.label is not None:
-                    vector = vectorizer.infer_vector(tokenizer.encode(message.text).tokens)
-                    recipient_vectors.append(vector)
-                    recipient_labels.append([float(message.label)])
-                    global_vectors.append(vector)
-                    global_labels.append([float(message.label)])
+            with open(temp / 'config.json', 'w') as fp:
+                json.dump(dict(config), fp)
 
-            if len(recipients) > 1:
-                model = SpamRegressor()
-                model.fit(recipient_vectors, recipient_labels)
-                model.save(temp / recipient / 'regressor.pt')
+            tokenizer, vectorizer = self._make_tokenizer_and_vectorizer(
+                config,
+                connector.iterate_all_messages,
+                connector.estimate_total_message_count,
+                None,
+            )
 
-        model = SpamRegressor()
-        model.fit(global_vectors, global_labels)
-        model.save(temp / 'regressor.pt')
+            tokenizer.save(str(temp / 'tokenizer.json'))
+            vectorizer.save(str(temp / 'doc2vec.model'))
 
-        for item in config.STORAGE.iterdir():
-            if item.is_dir():
-                rmtree(item)
-            else:
-                item.unlink()
+            global_vectors = []
+            global_labels = []
 
-        for item in temp.iterdir():
-            move(item, config.STORAGE / item.name)
+            recipients = list(connector.recipients())
+            for recipient in recipients:
+                recipient_vectors = []
+                recipient_labels = []
+
+                for message in connector.iterate_messages_for_user(recipient):
+                    if message.label is not None:
+                        vector = vectorizer.infer_vector(tokenizer.encode(message.text).tokens)
+                        recipient_vectors.append(vector)
+                        recipient_labels.append([float(message.label)])
+                        global_vectors.append(vector)
+                        global_labels.append([float(message.label)])
+
+                if len(recipients) > 1:
+                    model = SpamRegressor(config)
+                    model.fit(recipient_vectors, recipient_labels)
+                    model.save(temp / recipient / 'regressor.pt')
+
+            model = SpamRegressor(config)
+            model.fit(global_vectors, global_labels)
+            model.save(temp / 'regressor.pt')
+
+            for item in self.settings.STORAGE.iterdir():
+                if item.is_dir():
+                    rmtree(item)
+                else:
+                    item.unlink()
+
+            for item in temp.iterdir():
+                move(item, self.settings.STORAGE / item.name)
+
+    def initialize_hpo(self):
+        connector = CONNECTORS[self.settings.CONNECTOR](self.settings, CS.get_default_configuration())
+        accessors = list(connector.iterate_all_message_accessors())
+        shuffle(accessors)
+
+        split_index = int(round(len(accessors) * 0.1))
+        self.validation_accessors = accessors[:split_index]
+        self.training_accessors = accessors[split_index:]
+
+        self.max_budget = len(self.training_accessors)
+        self.min_budget = max(1, int(round(len(self.training_accessors) / 100)))
+
+    def train_and_validate(self, config, seed, budget, fast=False):
+        budget = int(round(budget))
+        connector = CONNECTORS[self.settings.CONNECTOR](self.settings, config)
+
+        def train_message_count():
+            return budget
+
+        def train_message_iterator():
+            yield from connector.fetch_messages_for_accessors(self.training_accessors[:budget])
+
+        tokenizer, vectorizer = self._make_tokenizer_and_vectorizer(
+            config,
+            train_message_iterator,
+            train_message_count,
+            seed,
+        )
+
+        train_vectors = []
+        train_labels = []
+        for message in train_message_iterator():
+            if message.label is not None:
+                vector = vectorizer.infer_vector(tokenizer.encode(message.text).tokens)
+                train_vectors.append(vector)
+                train_labels.append([float(message.label)])
+
+        model = SpamRegressor(config)
+        model.fit(train_vectors, train_labels, seed)
+
+        validation_vectors = []
+        validation_labels = []
+        for message in connector.fetch_messages_for_accessors(self.validation_accessors if not fast else self.validation_accessors[:budget]):
+            if message.label is not None:
+                vector = vectorizer.infer_vector(tokenizer.encode(message.text).tokens)
+                validation_vectors.append(vector)
+                validation_labels.append([float(message.label)])
+
+        return model.score(validation_vectors, validation_labels)
