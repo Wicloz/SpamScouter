@@ -1,4 +1,5 @@
 from .connectors.imap import ConnectorIMAP
+from .connectors.cache import ConnectorCache
 from tokenizers import BertWordPieceTokenizer
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from gensim.utils import RULE_KEEP
@@ -16,6 +17,7 @@ import torch
 
 CONNECTORS = {
     'IMAP': ConnectorIMAP,
+    'CACHE': ConnectorCache,
 }
 
 

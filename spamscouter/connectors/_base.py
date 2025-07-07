@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from ..message import Message
 import email
+from pathlib import Path
 
 
 class ConnectorBase(ABC):
@@ -41,3 +42,32 @@ class ConnectorBase(ABC):
     @abstractmethod
     def fetch_messages_for_accessors(self, accessors):
         pass
+
+    def save_as_local_cache(self, path):
+        path = Path(path)
+
+        for recipient in self.recipients():
+            spam_path = path / recipient / 'spam'
+            spam_path.mkdir(parents=True)
+            ham_path = path / recipient / 'ham'
+            ham_path.mkdir(parents=True)
+            none_path = path / recipient / 'indeterminate'
+            none_path.mkdir(parents=True)
+
+            for message in self.iterate_messages_for_user(recipient):
+                if message.label is None:
+                    message_path = none_path
+                if message.label is True:
+                    message_path = spam_path
+                if message.label is False:
+                    message_path = ham_path
+
+                message_path = message_path / f'{hash(message.uid)}.eml'
+
+                try:
+                    message_bytes = bytes(message.email)
+                except Exception as e:
+                    print(e)
+
+                with open(message_path, 'wb') as fp:
+                    fp.write(message_bytes)
