@@ -22,7 +22,7 @@ CONNECTORS = {
 CS = ConfigurationSpace()
 CS.add(Integer('doc2vec_output_size', (100, 1000), default=200))
 CS.add(Integer('hidden_layer_size', (100, 10000), default=2000))
-CS.add(Categorical('message_processing_method', MESSAGE_PROCESS_METHODS.keys(), default='unicode'))
+CS.add(Categorical('message_processing_method', MESSAGE_PROCESS_METHODS.keys(), default='body_unicode'))
 CS.add(Float('vocab_size_per_message', (0, 2), default=1, distribution=Beta(4, 4)))
 
 
