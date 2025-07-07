@@ -61,7 +61,7 @@ class Trainer:
             temp = Path(temp)
 
             config = CS.get_default_configuration()
-            connector = CONNECTORS[self.settings.CONNECTOR](self.settings, config)
+            connector = CONNECTORS[self.settings.CONNECTOR](self.settings)
 
             with open(temp / 'config.json', 'w') as fp:
                 json.dump(dict(config), fp)
@@ -111,7 +111,7 @@ class Trainer:
                 move(item, self.settings.STORAGE / item.name)
 
     def initialize_hpo(self):
-        connector = CONNECTORS[self.settings.CONNECTOR](self.settings, CS.get_default_configuration())
+        connector = CONNECTORS[self.settings.CONNECTOR](self.settings)
         accessors = list(connector.iterate_all_message_accessors())
         shuffle(accessors)
 
@@ -124,7 +124,7 @@ class Trainer:
 
     def train_and_validate(self, config, seed, budget, fast=False):
         budget = int(round(budget))
-        connector = CONNECTORS[self.settings.CONNECTOR](self.settings, config)
+        connector = CONNECTORS[self.settings.CONNECTOR](self.settings)
 
         def train_message_count():
             return budget

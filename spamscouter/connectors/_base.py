@@ -4,9 +4,8 @@ import email
 
 
 class ConnectorBase(ABC):
-    def __init__(self, settings, config):
+    def __init__(self, settings):
         self.settings = settings
-        self.config = config
 
     def _message_factory(self, message_bytes, unique_identifier, read, folder_name, folder_flags):
         message = email.message_from_bytes(message_bytes)
