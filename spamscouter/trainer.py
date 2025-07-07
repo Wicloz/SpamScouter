@@ -33,7 +33,7 @@ class Trainer:
     def _make_tokenizer_and_vectorizer(self, config, message_iterator_fn, message_count_fn, seed):
         tokenizer = BertWordPieceTokenizer()
         tokenizer.train_from_iterator(
-            (message.text for message in message_iterator_fn()),
+            (message.text(config) for message in message_iterator_fn()),
             vocab_size=int(round(message_count_fn() * config['vocab_size_per_message'])),
         )
 
@@ -50,7 +50,7 @@ class Trainer:
 
         for _ in trange(3, desc='doc2vec Epochs'):
             vectorizer.train(
-                tqdm(TaggedDocument(tokenizer.encode(message.text).tokens, [message.uid]) for message in message_iterator_fn()),
+                tqdm(TaggedDocument(tokenizer.encode(message.text(config)).tokens, [message.uid]) for message in message_iterator_fn()),
                 epochs=1, total_examples=message_count_fn(),
             )
 
@@ -86,7 +86,7 @@ class Trainer:
 
                 for message in connector.iterate_messages_for_user(recipient):
                     if message.label is not None:
-                        vector = vectorizer.infer_vector(tokenizer.encode(message.text).tokens)
+                        vector = vectorizer.infer_vector(tokenizer.encode(message.text(config)).tokens)
                         recipient_vectors.append(vector)
                         recipient_labels.append([float(message.label)])
                         global_vectors.append(vector)
@@ -143,7 +143,7 @@ class Trainer:
         train_labels = []
         for message in train_message_iterator():
             if message.label is not None:
-                vector = vectorizer.infer_vector(tokenizer.encode(message.text).tokens)
+                vector = vectorizer.infer_vector(tokenizer.encode(message.text(config)).tokens)
                 train_vectors.append(vector)
                 train_labels.append([float(message.label)])
 
@@ -155,7 +155,7 @@ class Trainer:
         validation_labels = []
         for message in connector.fetch_messages_for_accessors(self.validation_accessors if not fast else self.validation_accessors[:budget]):
             if message.label is not None:
-                vector = vectorizer.infer_vector(tokenizer.encode(message.text).tokens)
+                vector = vectorizer.infer_vector(tokenizer.encode(message.text(config)).tokens)
                 validation_vectors.append(vector)
                 validation_labels.append([float(message.label)])
 

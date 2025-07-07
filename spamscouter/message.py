@@ -1,4 +1,3 @@
-import email
 from bs4 import UnicodeDammit, BeautifulSoup
 from subprocess import run
 from tempfile import TemporaryDirectory
@@ -101,22 +100,12 @@ MESSAGE_PROCESS_METHODS = {
 }
 
 
-def parse_milter_message(method, message_bytes):
-    return MESSAGE_PROCESS_METHODS[method](email.message_from_bytes(message_bytes))
-
-
-def message_builder(message_bytes, read, unique_identifier, folder_name, folder_flags, spam_status_fn, method):
-    message = email.message_from_bytes(message_bytes)
-    message.read = read
-
-    label = spam_status_fn(message, folder_name, folder_flags)
-    text = MESSAGE_PROCESS_METHODS[method](message)
-
-    return Message(text, unique_identifier, label)
-
-
 class Message:
-    def __init__(self, text, uid, label):
-        self.text = text
+    def __init__(self, email, uid, label):
+        self.email = email
         self.uid = uid
         self.label = label
+
+    def text(self, config):
+        method = MESSAGE_PROCESS_METHODS[config['message_processing_method']]
+        return method(self.email)

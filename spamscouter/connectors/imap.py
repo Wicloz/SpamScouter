@@ -1,5 +1,4 @@
 from ..connectors._base import ConnectorBase
-from ..message import message_builder
 from contextlib import contextmanager
 from imap_tools import MailBox
 import re
@@ -22,13 +21,13 @@ class ConnectorIMAP(ConnectorBase):
         for folder in mailbox.folder.list():
             yield folder.name, {flag.lstrip('\\').lower() for flag in folder.flags}
 
-    def _iterate_selected_messages_here(self, mailbox, uids, folder, flags):
+    def _iterate_selected_messages_here(self, mailbox, uids, recipient, folder, flags):
         for response in mailbox._fetch_in_bulk(uids, '(RFC822 FLAGS)', False, 100):
             header = response[0][0].decode('ASCII')
             uid = int(re.search(r'UID (\d+)', header).group(1))
             read = re.search(r'FLAGS \([^\(\)]*\\Seen[^\(\)]*\)', header) is not None
             message = response[0][1]
-            yield message_builder(message, read, f'{folder}/{uid}', folder, flags, self.settings.get_spam_status, self.config['message_processing_method'])
+            yield self._message_factory(message, f'{recipient}/{folder}/{uid}', read, folder, flags)
 
     def iterate_messages_for_user(self, recipient):
         with self._mailbox(recipient) as mailbox:
@@ -37,7 +36,8 @@ class ConnectorIMAP(ConnectorBase):
                 if 'sent' in flags or 'drafts' in flags or 'trash' in flags:
                     continue
                 mailbox.folder.set(folder, readonly=True)
-                yield from self._iterate_selected_messages_here(mailbox, mailbox.uids(), folder, flags)
+
+                yield from self._iterate_selected_messages_here(mailbox, mailbox.uids(), recipient, folder, flags)
 
     def estimate_message_count_for_user(self, recipient):
         estimate = 0
@@ -78,4 +78,5 @@ class ConnectorIMAP(ConnectorBase):
                         if folder_name == folder:
                             break
                     mailbox.folder.set(folder, readonly=True)
-                    yield from self._iterate_selected_messages_here(mailbox, uids, folder, flags)
+
+                    yield from self._iterate_selected_messages_here(mailbox, uids, recipient, folder, flags)

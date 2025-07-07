@@ -1,10 +1,17 @@
 from abc import ABC, abstractmethod
+from ..message import Message
+import email
 
 
 class ConnectorBase(ABC):
     def __init__(self, settings, config):
         self.settings = settings
         self.config = config
+
+    def _message_factory(self, message_bytes, unique_identifier, read, folder_name, folder_flags):
+        message = email.message_from_bytes(message_bytes)
+        label = self.settings.get_spam_status(message, read, folder_name, folder_flags)
+        return Message(message, unique_identifier, label)
 
     @abstractmethod
     def recipients(self):

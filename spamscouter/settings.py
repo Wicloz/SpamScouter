@@ -7,8 +7,8 @@ class BaseSettings(ABC):
     CONNECTOR = None
 
     @staticmethod
-    def get_spam_status(message, folder_name, folder_flags):
-        if not message.read or folder_name == 'INBOX':
+    def get_spam_status(message, read, folder_name, folder_flags):
+        if not read or folder_name == 'INBOX':
             return None
 
         if 'junk' in folder_flags:

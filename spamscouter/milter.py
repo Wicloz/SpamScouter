@@ -5,9 +5,10 @@ from gensim.models.doc2vec import Doc2Vec
 import torch
 from argparse import ArgumentParser
 from pathlib import Path
-from .message import parse_milter_message
+from .message import Message
 from .models import SpamRegressor
 import json
+import email
 
 
 class SpamScouterMilter(Milter.Base):
@@ -52,7 +53,7 @@ class SpamScouterMilter(Milter.Base):
         print('Processing email for recipients:', self.recipients)
 
         # convert the message to text
-        text = parse_milter_message(CONFIG['message_processing_method'], self.message)
+        text = Message(email.message_from_bytes(self.message), None, None).text(CONFIG)
         print('>', len(text), 'characters after processing.')
 
         # convert the text to a tensor
