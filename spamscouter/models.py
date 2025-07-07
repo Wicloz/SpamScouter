@@ -1,9 +1,9 @@
 import torch.nn as nn
-from transformers import Trainer, TrainingArguments, EarlyStoppingCallback
-from datasets import Dataset
 import torch
 import numpy as np
 from tempfile import TemporaryDirectory
+from tqdm import tqdm, trange
+from math import ceil
 
 
 class SpamRegressor(nn.Module):
@@ -15,6 +15,9 @@ class SpamRegressor(nn.Module):
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(config['hidden_layer_size'], 1)
         self.sigmoid = nn.Sigmoid()
+
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.to(self.device)
 
     def forward(self, vectors, labels=None):
         vectors = self.fc1(vectors)
@@ -29,36 +32,69 @@ class SpamRegressor(nn.Module):
         return result
 
     def score(self, vectors, labels):
-        vectors = torch.tensor(np.array(vectors, dtype=np.float32), dtype=torch.float32)
-        labels = torch.tensor(np.array(labels, dtype=np.float32), dtype=torch.float32)
+        vectors = torch.tensor(np.array(vectors, dtype=np.float32), dtype=torch.float32).to(self.device)
+        labels = torch.tensor(np.array(labels, dtype=np.float32), dtype=torch.float32).to(self.device)
 
         with torch.no_grad():
             return self.forward(vectors, labels)['loss'].item()
 
-    def fit(self, vectors, labels, seed=None):
+    def fit(self, vectors, labels):
         train_eval_split_idx = int(round(len(vectors) * 0.1))
-        eval_dataset = Dataset.from_dict({'vectors': vectors[:train_eval_split_idx], 'labels': labels[:train_eval_split_idx]})
-        train_dataset = Dataset.from_dict({'vectors': vectors[train_eval_split_idx:], 'labels': labels[train_eval_split_idx:]})
+        train_eval_perm = torch.randperm(len(vectors))
 
-        seed_kwargs = {}
-        if seed is not None:
-            seed_kwargs['seed'] = seed
-            seed_kwargs['full_determinism'] = True
+        vectors = torch.tensor(np.array(vectors, dtype=np.float32), dtype=torch.float32)[train_eval_perm].to(self.device)
+        valid_vectors = vectors[:train_eval_split_idx]
+        train_vectors = vectors[train_eval_split_idx:]
+
+        labels = torch.tensor(np.array(labels, dtype=np.float32), dtype=torch.float32)[train_eval_perm].to(self.device)
+        valid_labels = labels[:train_eval_split_idx]
+        train_labels = labels[train_eval_split_idx:]
+
+        optimizer = torch.optim.Adam(self.parameters())
+        incumbent_loss = float('inf')
+        epochs_without_new_incumbent = 0
 
         with TemporaryDirectory() as tmpdir:
-            Trainer(model=self, train_dataset=train_dataset, eval_dataset=eval_dataset, args=TrainingArguments(
-                **seed_kwargs,
-                num_train_epochs=300,
-                per_device_train_batch_size=int(round(len(vectors) / 100)),
-                metric_for_best_model='loss',
-                eval_strategy='epoch',
-                per_device_eval_batch_size=int(round(len(vectors) / 100)),
-                load_best_model_at_end=True,
-                save_strategy='epoch',
-                output_dir=tmpdir,
-            ), callbacks=[EarlyStoppingCallback(
-                early_stopping_patience=3,
-            )]).train()
+            with tqdm(desc='classifier Epochs') as progress:
+                while True:
+                    self.train()
+
+                    epoch_perm = torch.randperm(len(train_vectors))
+                    steps = ceil(len(train_vectors) / 100)
+                    deficit = 100 - (len(train_vectors) % 100)
+                    deficit_per_step = ceil(deficit / steps)
+                    idx = 0
+
+                    for _ in trange(steps, leave=False):
+                        deficit_consumed = min(deficit, deficit_per_step)
+                        batch_size = 100 - deficit_consumed
+                        deficit -= deficit_consumed
+                        batch_indices = epoch_perm[idx:idx + batch_size]
+                        idx += batch_size
+
+                        optimizer.zero_grad()
+                        loss = self.forward(train_vectors[batch_indices], train_labels[batch_indices])['loss']
+                        loss.backward()
+                        optimizer.step()
+
+                    progress.update(1)
+                    self.eval()
+
+                    with torch.no_grad():
+                        eval_loss = self.forward(valid_vectors, valid_labels)['loss'].item()
+
+                    if eval_loss < incumbent_loss:
+                        incumbent_loss = eval_loss
+                        epochs_without_new_incumbent = 0
+                        self.save(f'{tmpdir}/incumbent.pt')
+
+                    else:
+                        epochs_without_new_incumbent += 1
+                        if epochs_without_new_incumbent >= 10:
+                            break
+
+            self.load(f'{tmpdir}/incumbent.pt')
+            self.eval()
 
     def save(self, path):
         torch.save(self.state_dict(), path)

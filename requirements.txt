@@ -4,11 +4,7 @@ pymilter
 
 tokenizers
 gensim
-
 torch
-transformers
-datasets
-accelerate
 
 configspace
 smac

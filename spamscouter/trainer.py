@@ -11,6 +11,7 @@ from random import shuffle
 from .message import MESSAGE_PROCESS_METHODS
 import json
 from tqdm import trange, tqdm
+import torch
 
 
 CONNECTORS = {
@@ -146,8 +147,9 @@ class Trainer:
                 train_vectors.append(vector)
                 train_labels.append([float(message.label)])
 
+        torch.manual_seed(seed)
         model = SpamRegressor(config)
-        model.fit(train_vectors, train_labels, seed)
+        model.fit(train_vectors, train_labels)
 
         validation_vectors = []
         validation_labels = []
