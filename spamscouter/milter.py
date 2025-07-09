@@ -63,6 +63,13 @@ class SpamScouterMilter(Milter.Base):
         with torch.no_grad():
             spam_probability = REGRESSOR(tensor)['logits'].item()
 
+        # modify the spam probability for each recipient
+        for recipient in self.recipients:
+            if recipient in REGRESSORS:
+                with torch.no_grad():
+                    spam_probability = min(spam_probability,
+                                           REGRESSORS[recipient](tensor)['logits'].item())
+
         # add the spam probability as a header
         print('> Spam Probability:', spam_probability)
         self.addheader('X-Spam-Scouter-Probability', str(spam_probability))
@@ -90,6 +97,13 @@ if __name__ == '__main__':
     REGRESSOR = SpamRegressor(CONFIG)
     REGRESSOR.load(args.model_store_dir / 'regressor.pt')
     REGRESSOR.eval()
+
+    REGRESSORS = {}
+    for py_torch_file in args.model_store_dir.glob('*/regressor.pt'):
+        regressor = SpamRegressor(CONFIG)
+        regressor.load(py_torch_file)
+        regressor.eval()
+        REGRESSORS[py_torch_file.parent.name] = regressor
 
     Milter.factory = SpamScouterMilter
     print('Done loading models, starting SpamScouter milter ...')
