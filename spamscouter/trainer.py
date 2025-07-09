@@ -22,7 +22,7 @@ CONNECTORS = {
 
 
 CS = ConfigurationSpace()
-CS.add(Integer('doc2vec_output_size', (100, 1000), default=200))
+CS.add(Integer('document_vector_size', (100, 1000), default=200))
 CS.add(Integer('hidden_layer_size', (100, 10000), default=2000))
 CS.add(Categorical('message_processing_method', MESSAGE_PROCESS_METHODS.keys(), default='body_unicode'))
 CS.add(Float('vocab_size_per_message', (0, 2), default=1, distribution=Beta(4, 4)))
@@ -43,7 +43,7 @@ class Trainer:
         if seed is not None:
             seed_kwargs['seed'] = seed
             seed_kwargs['workers'] = 1
-        vectorizer = Doc2Vec(vector_size=config['doc2vec_output_size'], **seed_kwargs)
+        vectorizer = Doc2Vec(vector_size=config['document_vector_size'], **seed_kwargs)
 
         vectorizer.build_vocab(
             [TaggedDocument([key], [value]) for key, value in tokenizer.get_vocab().items()],

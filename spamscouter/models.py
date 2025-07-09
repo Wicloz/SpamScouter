@@ -11,7 +11,7 @@ class SpamRegressor(nn.Module):
         super().__init__()
         self.loss = nn.BCELoss()
 
-        self.fc1 = nn.Linear(config['doc2vec_output_size'], config['hidden_layer_size'])
+        self.fc1 = nn.Linear(config['document_vector_size'], config['hidden_layer_size'])
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(config['hidden_layer_size'], 1)
         self.sigmoid = nn.Sigmoid()
