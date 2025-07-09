@@ -58,11 +58,12 @@ class Trainer:
 
         return tokenizer, vectorizer
 
-    def build(self):
+    def build(self, config=None):
         with TemporaryDirectory() as temp:
             temp = Path(temp)
 
-            config = CS.get_default_configuration()
+            if config is None:
+                config = CS.get_default_configuration()
             connector = CONNECTORS[self.settings.CONNECTOR](self.settings)
 
             with open(temp / 'config.json', 'w') as fp:
