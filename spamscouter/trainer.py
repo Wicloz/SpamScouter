@@ -32,7 +32,7 @@ class Trainer:
     def __init__(self, settings):
         self.settings = settings
 
-    def _make_tokenizer_and_vectorizer(self, config, message_iterator_fn, message_count_fn, seed):
+    def _make_tokenizer_and_vectorizer(self, config, seed, message_iterator_fn, message_count_fn):
         tokenizer = BertWordPieceTokenizer()
         tokenizer.train_from_iterator(
             (message.text(config) for message in message_iterator_fn()),
@@ -51,9 +51,10 @@ class Trainer:
         )
 
         for _ in trange(3, desc='doc2vec Epochs'):
+            count = message_count_fn()
             vectorizer.train(
-                tqdm(TaggedDocument(tokenizer.encode(message.text(config)).tokens, [message.uid]) for message in message_iterator_fn()),
-                epochs=1, total_examples=message_count_fn(),
+                tqdm(iterable=(TaggedDocument(tokenizer.encode(message.text(config)).tokens, [message.uid]) for message in message_iterator_fn()), total=count),
+                epochs=1, total_examples=count,
             )
 
         return tokenizer, vectorizer
@@ -70,10 +71,9 @@ class Trainer:
                 json.dump(dict(config), fp)
 
             tokenizer, vectorizer = self._make_tokenizer_and_vectorizer(
-                config,
+                config, None,
                 connector.iterate_all_messages,
                 connector.estimate_total_message_count,
-                None,
             )
 
             tokenizer.save(str(temp / 'tokenizer.json'))
@@ -136,10 +136,9 @@ class Trainer:
             yield from connector.fetch_messages_for_accessors(self.training_accessors[:budget])
 
         tokenizer, vectorizer = self._make_tokenizer_and_vectorizer(
-            config,
+            config, seed,
             train_message_iterator,
             train_message_count,
-            seed,
         )
 
         train_vectors = []
