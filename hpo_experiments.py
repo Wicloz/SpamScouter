@@ -1,6 +1,7 @@
 from smac import MultiFidelityFacade, Scenario
 from spamscouter.trainer import Trainer, CS
 from spamscouter.settings import BaseSettings
+from os import cpu_count
 
 
 class ScouterSettings(BaseSettings):
@@ -17,7 +18,7 @@ if __name__ == '__main__':
         min_budget=trainer.min_budget,
         max_budget=trainer.max_budget,
         deterministic=True,
-        # n_workers=10,
+        n_workers=cpu_count() - 1,
         output_directory='.smac/',
     ), trainer.train_and_validate)
     incumbent = smac.optimize()
