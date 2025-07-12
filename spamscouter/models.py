@@ -32,9 +32,10 @@ class SpamRegressor(nn.Module):
         return result
 
     def score(self, vectors, labels):
-        vectors = torch.tensor(np.array(vectors, dtype=np.float32), dtype=torch.float32).to(self.device)
-        labels = torch.tensor(np.array(labels, dtype=np.float32), dtype=torch.float32).to(self.device)
+        vectors = vectors.to(self.device)
+        labels = labels.to(self.device)
 
+        self.eval()
         with torch.no_grad():
             return self.forward(vectors, labels)['loss'].item()
 
@@ -42,11 +43,11 @@ class SpamRegressor(nn.Module):
         train_eval_split_idx = int(round(len(vectors) * 0.1))
         train_eval_perm = torch.randperm(len(vectors))
 
-        vectors = torch.tensor(np.array(vectors, dtype=np.float32), dtype=torch.float32)[train_eval_perm].to(self.device)
+        vectors = vectors[train_eval_perm].to(self.device)
         valid_vectors = vectors[:train_eval_split_idx]
         train_vectors = vectors[train_eval_split_idx:]
 
-        labels = torch.tensor(np.array(labels, dtype=np.float32), dtype=torch.float32)[train_eval_perm].to(self.device)
+        labels = labels[train_eval_perm].to(self.device)
         valid_labels = labels[:train_eval_split_idx]
         train_labels = labels[train_eval_split_idx:]
 
@@ -94,7 +95,6 @@ class SpamRegressor(nn.Module):
                             break
 
             self.load(f'{tmpdir}/incumbent.pt')
-            self.eval()
 
     def save(self, path):
         torch.save(self.state_dict(), path)
