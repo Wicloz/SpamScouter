@@ -2,7 +2,7 @@ from .connectors.imap import ConnectorIMAP
 from .connectors.cache import ConnectorCache
 from tokenizers import BertWordPieceTokenizer
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
-from gensim.utils import RULE_KEEP
+from collections import Counter
 from .models import SpamRegressor
 from tempfile import TemporaryDirectory
 from shutil import move, rmtree
@@ -26,6 +26,7 @@ CS.add(Integer('document_vector_size', (100, 1000), default=200))
 CS.add(Integer('hidden_layer_size', (100, 10000), default=2000))
 CS.add(Categorical('message_processing_method', MESSAGE_PROCESS_METHODS.keys(), default='body_unicode'))
 CS.add(Float('vocab_size_per_message', (0, 2), default=1, distribution=Beta(4, 4)))
+CS.add(Integer('vocab_token_min_count', (1, 10000), default=1, log=True))
 
 
 class Trainer:
@@ -43,12 +44,12 @@ class Trainer:
         if seed is not None:
             seed_kwargs['seed'] = seed
             seed_kwargs['workers'] = 1
-        vectorizer = Doc2Vec(vector_size=config['document_vector_size'], **seed_kwargs)
+        vectorizer = Doc2Vec(vector_size=config['document_vector_size'], min_count=config['vocab_token_min_count'], **seed_kwargs)
 
-        vectorizer.build_vocab(
-            [TaggedDocument([key], [value]) for key, value in tokenizer.get_vocab().items()],
-            trim_rule=lambda _1, _2, _3: RULE_KEEP,
-        )
+        frequencies = Counter()
+        for message in tqdm(message_iterator_fn(), total=message_count_fn(), desc='Building vocabulary'):
+            frequencies.update(tokenizer.encode(message.text(config)).tokens)
+        vectorizer.build_vocab_from_freq(frequencies)
 
         for _ in trange(3, desc='doc2vec Epochs'):
             count = message_count_fn()
