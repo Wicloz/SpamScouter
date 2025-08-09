@@ -8,3 +8,5 @@ torch
 
 configspace
 smac
+seaborn
+pandas
