@@ -7,6 +7,6 @@ gensim
 torch
 
 configspace
-smac
+smac @ git+https://github.com/automl/SMAC3@development
 seaborn
 pandas
