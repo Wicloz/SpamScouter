@@ -10,4 +10,4 @@ services:
       dockerfile: milter.dockerfile
       context: ../
     volumes:
-      - ../models/:/var/lib/spamscouter/
+      - ../.models/:/var/lib/spamscouter/
