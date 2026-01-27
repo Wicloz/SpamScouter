@@ -1,6 +1,5 @@
 import torch.nn as nn
 import torch
-import numpy as np
 from tempfile import TemporaryDirectory
 from tqdm import tqdm, trange
 from math import ceil
