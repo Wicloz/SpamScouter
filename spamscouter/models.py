@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch
+import numpy as np
 from tempfile import TemporaryDirectory
 from tqdm import tqdm, trange
 from math import ceil
@@ -51,7 +52,7 @@ class SpamRegressor(nn.Module):
         train_labels = labels[train_eval_split_idx:]
 
         optimizer = torch.optim.Adam(self.parameters())
-        incumbent_loss = float('inf')
+        incumbent_loss = np.inf
         epochs_without_new_incumbent = 0
 
         with TemporaryDirectory() as tmpdir:
