@@ -103,12 +103,15 @@ class Trainer:
                         progress.update(1)
 
                     if len(recipients) > 1:
+                        recipient_vectors = torch.tensor(global_vectors[recipient_start_idx:idx], dtype=PT_DTYPE)
+                        recipient_labels = torch.tensor(global_labels[recipient_start_idx:idx], dtype=PT_DTYPE)
+
                         model = SpamRegressor(config)
-                        model.fit(
-                            torch.tensor(global_vectors[recipient_start_idx:idx], dtype=PT_DTYPE),
-                            torch.tensor(global_labels[recipient_start_idx:idx], dtype=PT_DTYPE),
-                        )
+                        model.fit(recipient_vectors, recipient_labels)
                         model.save(temp / recipient / 'regressor.pt')
+
+                        score = model.score(recipient_vectors, recipient_labels, 'accuracy')
+                        print(f'Training accuracy for <{recipient}>:', score)
 
                 global_vectors = torch.tensor(global_vectors[:idx], dtype=PT_DTYPE)
                 global_labels = torch.tensor(global_labels[:idx], dtype=PT_DTYPE)
@@ -116,6 +119,9 @@ class Trainer:
                 model = SpamRegressor(config)
                 model.fit(global_vectors, global_labels)
                 model.save(temp / 'regressor.pt')
+
+                score = model.score(global_vectors, global_labels, 'accuracy')
+                print('Global training accuracy:', score)
 
             for item in self.settings.STORAGE.iterdir():
                 if item.is_dir():

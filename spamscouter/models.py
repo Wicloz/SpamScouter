@@ -31,13 +31,18 @@ class SpamRegressor(nn.Module):
 
         return result
 
-    def score(self, vectors, labels):
+    def score(self, vectors, labels, metric='loss'):
         vectors = vectors.to(self.device)
         labels = labels.to(self.device)
 
         self.eval()
         with torch.no_grad():
-            return self.forward(vectors, labels)['loss'].item()
+            vectors = self.forward(vectors)['logits']
+
+        if metric == 'loss':
+            return self.loss(vectors, labels).item()
+        if metric == 'accuracy':
+            return vectors.round().eq(labels).float().mean().item()
 
     def fit(self, vectors, labels):
         train_eval_split_idx = int(round(len(vectors) * 0.1))
