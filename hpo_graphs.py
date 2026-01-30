@@ -26,6 +26,9 @@ if __name__ == '__main__':
     df['budget'] = df['budget'].round().astype(int)
     df['message_processing_method'] = df['message_processing_method'].astype('category')
 
+    # show the row with the lowest loss
+    print(df.loc[df['loss'].idxmin()])
+
     for budget in df['budget'].unique():
         selected = df[df['budget'] == budget]
 
