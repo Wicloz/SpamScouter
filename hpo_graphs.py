@@ -20,7 +20,7 @@ if __name__ == '__main__':
                 df = df._append({
                     'loss': run['cost'],
                     'budget': run['budget'],
-                    **{key: config[key] for key in CS.keys()},
+                    **{key: config[key] for key in CS.keys() if key in config},
                 }, ignore_index=True)
 
     df['budget'] = df['budget'].round().astype(int)
