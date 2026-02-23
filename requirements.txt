@@ -4,7 +4,8 @@ pymilter
 
 tokenizers
 gensim
-torch
+scikit-learn
+numpy
 
 configspace
 smac @ git+https://github.com/automl/SMAC3@development
