@@ -2,13 +2,12 @@ import Milter
 from Milter import decode
 from tokenizers import Tokenizer
 from gensim.models.doc2vec import Doc2Vec
-import torch
 from argparse import ArgumentParser
 from pathlib import Path
 from .message import Message
-from .models import SpamRegressor
 import json
 import email
+import pickle
 
 
 class SpamScouterMilter(Milter.Base):
@@ -56,19 +55,17 @@ class SpamScouterMilter(Milter.Base):
         text = Message(email.message_from_bytes(self.message), None, None).text(CONFIG)
         print('>', len(text), 'characters after processing.')
 
-        # convert the text to a tensor
-        tensor = torch.tensor(list(VECTORIZER.infer_vector(TOKENIZER.encode(text).tokens)))
+        # convert the text to a vector
+        vector = VECTORIZER.infer_vector(TOKENIZER.encode(text).tokens)
 
         # predict the global spam probability
-        with torch.no_grad():
-            spam_probability = REGRESSOR(tensor)['logits'].item()
+        spam_probability = REGRESSOR.predict([vector])[0]
 
         # modify the spam probability for each recipient
         for recipient in self.recipients:
             if recipient in REGRESSORS:
-                with torch.no_grad():
-                    spam_probability = min(spam_probability,
-                                           REGRESSORS[recipient](tensor)['logits'].item())
+                spam_probability = min(spam_probability,
+                                       REGRESSORS[recipient].predict([vector])[0])
 
         # add the spam probability as a header
         print('> Spam Probability:', spam_probability)
@@ -94,16 +91,14 @@ if __name__ == '__main__':
     TOKENIZER = Tokenizer.from_file(str(args.model_store_dir / 'tokenizer.json'))
     VECTORIZER = Doc2Vec.load(str(args.model_store_dir / 'doc2vec.model'))
 
-    REGRESSOR = SpamRegressor(CONFIG)
-    REGRESSOR.load(args.model_store_dir / 'regressor.pt')
-    REGRESSOR.eval()
+    with open(args.model_store_dir / 'regressor.pkl', 'rb') as fp:
+        REGRESSOR = pickle.load(fp)
 
     REGRESSORS = {}
-    for py_torch_file in args.model_store_dir.glob('*/regressor.pt'):
-        regressor = SpamRegressor(CONFIG)
-        regressor.load(py_torch_file)
-        regressor.eval()
-        REGRESSORS[py_torch_file.parent.name] = regressor
+    for pickle_file_path in args.model_store_dir.glob('*/regressor.pkl'):
+        with open(pickle_file_path, 'rb') as fp:
+            regressor = pickle.load(fp)
+        REGRESSORS[pickle_file_path.parent.name] = regressor
 
     Milter.factory = SpamScouterMilter
     print('Done loading models, starting SpamScouter milter ...')

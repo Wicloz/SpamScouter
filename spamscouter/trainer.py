@@ -3,17 +3,17 @@ from .connectors.cache import ConnectorCache
 from tokenizers import BertWordPieceTokenizer
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from collections import Counter
-from .models import SpamRegressor
 from tempfile import TemporaryDirectory
 from shutil import move, rmtree
 from pathlib import Path
-from ConfigSpace import ConfigurationSpace, Categorical, Integer, Float, Beta
+from ConfigSpace import ConfigurationSpace, Categorical, Integer, Float, Beta, EqualsCondition
 from random import shuffle
 from .message import MESSAGE_PROCESS_METHODS
 import json
 from tqdm import trange, tqdm
-import torch
 import numpy as np
+from sklearn import svm, tree, neighbors
+import pickle
 
 
 CONNECTORS = {
@@ -24,14 +24,38 @@ CONNECTORS = {
 
 CS = ConfigurationSpace()
 CS.add(Integer('document_vector_size', (100, 1000), default=200))
-CS.add(Integer('hidden_layer_size', (100, 10000), default=2000))
 CS.add(Categorical('message_processing_method', MESSAGE_PROCESS_METHODS.keys(), default='body_unicode'))
 CS.add(Float('vocab_size_per_message', (0, 2), default=1, distribution=Beta(4, 4)))
 CS.add(Integer('vocab_token_min_count', (1, 10000), default=100, log=True))
 
+REGRESSORS = {
+    'SVM': svm.SVR,
+    'DecisionTree': tree.DecisionTreeRegressor,
+    'NearestNeighbors': neighbors.KNeighborsRegressor,
+}
 
-PT_DTYPE = torch.float32
-NP_DTYPE = np.float32
+regressor_hp = Categorical('regressor_type', REGRESSORS.keys(), default='SVM')
+CS.add(regressor_hp)
+
+HYPER_PARAMETERS = {
+    'SVM': [],
+    'DecisionTree': [],
+    'NearestNeighbors': [
+        Integer('n_neighbors', (1, 100), default=5),
+    ],
+}
+
+for regressor_type, hyper_parameters in HYPER_PARAMETERS.items():
+    for hyper_parameter in hyper_parameters:
+        hyper_parameter.name = f'{regressor_type}.{hyper_parameter.name}'
+        CS.add(hyper_parameter)
+        CS.add(EqualsCondition(hyper_parameter, regressor_hp, regressor_type))
+
+SEED_PARAMETERS = {
+    'SVM': None,
+    'DecisionTree': 'random_state',
+    'NearestNeighbors': None,
+}
 
 
 class Trainer:
@@ -65,6 +89,28 @@ class Trainer:
 
         return tokenizer, vectorizer
 
+    def _make_regressor(self, config, seed, vectors, labels):
+        kwargs = {}
+
+        seed_parameter = SEED_PARAMETERS[config['regressor_type']]
+        if seed is not None and seed_parameter is not None:
+            kwargs[seed_parameter] = seed
+
+        prefix = config['regressor_type'] + '.'
+        for key, value in config.items():
+            if key.startswith(prefix):
+                kwargs[key[len(prefix):]] = value
+
+        regressor = REGRESSORS[config['regressor_type']](**kwargs)
+        regressor.fit(vectors, labels)
+
+        return regressor
+
+    def _regressor_accuracy(self, regressor, vectors, labels):
+        predictions = regressor.predict(vectors)
+        predictions = (predictions > 0.5).astype(bool)
+        return (predictions == labels).mean()
+
     def build(self, config=None):
         with TemporaryDirectory() as temp:
             temp = Path(temp)
@@ -86,8 +132,8 @@ class Trainer:
             vectorizer.save(str(temp / 'doc2vec.model'))
 
             overestimate = int(round(connector.estimate_total_message_count() * 1.1))
-            global_vectors = np.empty((overestimate, config['document_vector_size']), dtype=NP_DTYPE)
-            global_labels = np.empty((overestimate, 1), dtype=NP_DTYPE)
+            global_vectors = np.empty((overestimate, config['document_vector_size']), dtype=float)
+            global_labels = np.empty(overestimate, dtype=bool)
             recipients = list(connector.recipients())
             idx = 0
 
@@ -103,24 +149,26 @@ class Trainer:
                         progress.update(1)
 
                     if len(recipients) > 1:
-                        recipient_vectors = torch.tensor(global_vectors[recipient_start_idx:idx], dtype=PT_DTYPE)
-                        recipient_labels = torch.tensor(global_labels[recipient_start_idx:idx], dtype=PT_DTYPE)
+                        recipient_vectors = global_vectors[recipient_start_idx:idx]
+                        recipient_labels = global_labels[recipient_start_idx:idx]
 
-                        model = SpamRegressor(config)
-                        model.fit(recipient_vectors, recipient_labels)
-                        model.save(temp / recipient / 'regressor.pt')
+                        regressor = self._make_regressor(config, None, recipient_vectors, recipient_labels)
 
-                        score = model.score(recipient_vectors, recipient_labels, 'accuracy')
+                        with open(temp / recipient / 'regressor.pkl', 'wb') as fp:
+                            pickle.dump(regressor, fp)
+
+                        score = self._regressor_accuracy(regressor, recipient_vectors, recipient_labels)
                         print(f'Training accuracy for <{recipient}>:', score)
 
-                global_vectors = torch.tensor(global_vectors[:idx], dtype=PT_DTYPE)
-                global_labels = torch.tensor(global_labels[:idx], dtype=PT_DTYPE)
+                global_vectors = global_vectors[:idx]
+                global_labels = global_labels[:idx]
 
-                model = SpamRegressor(config)
-                model.fit(global_vectors, global_labels)
-                model.save(temp / 'regressor.pt')
+                regressor = self._make_regressor(config, None, global_vectors, global_labels)
 
-                score = model.score(global_vectors, global_labels, 'accuracy')
+                with open(temp / 'regressor.pkl', 'wb') as fp:
+                    pickle.dump(regressor, fp)
+
+                score = self._regressor_accuracy(regressor, global_vectors, global_labels)
                 print('Global training accuracy:', score)
 
             for item in self.settings.STORAGE.iterdir():
@@ -160,8 +208,8 @@ class Trainer:
             train_message_count,
         )
 
-        train_vectors = np.empty((budget, config['document_vector_size']), dtype=NP_DTYPE)
-        train_labels = np.empty((budget, 1), dtype=NP_DTYPE)
+        train_vectors = np.empty((budget, config['document_vector_size']), dtype=float)
+        train_labels = np.empty(budget, dtype=bool)
         idx = 0
 
         for message in tqdm(train_message_iterator(), total=budget, desc='Converting training accessors'):
@@ -170,16 +218,14 @@ class Trainer:
                 train_labels[idx] = message.label
                 idx += 1
 
-        train_vectors = torch.tensor(train_vectors[:idx], dtype=PT_DTYPE)
-        train_labels = torch.tensor(train_labels[:idx], dtype=PT_DTYPE)
+        train_vectors = train_vectors[:idx]
+        train_labels = train_labels[:idx]
 
-        torch.manual_seed(seed)
-        model = SpamRegressor(config)
-        model.fit(train_vectors, train_labels)
+        regressor = self._make_regressor(config, seed, train_vectors, train_labels)
 
         validation_length = len(self.validation_accessors)
-        validation_vectors = np.empty((validation_length, config['document_vector_size']), dtype=NP_DTYPE)
-        validation_labels = np.empty((validation_length, 1), dtype=NP_DTYPE)
+        validation_vectors = np.empty((validation_length, config['document_vector_size']), dtype=float)
+        validation_labels = np.empty(validation_length, dtype=bool)
         idx = 0
 
         for message in tqdm(connector.fetch_messages_for_accessors(self.validation_accessors), total=validation_length, desc='Converting validation accessors'):
@@ -188,7 +234,7 @@ class Trainer:
                 validation_labels[idx] = message.label
                 idx += 1
 
-        validation_vectors = torch.tensor(validation_vectors[:idx], dtype=PT_DTYPE)
-        validation_labels = torch.tensor(validation_labels[:idx], dtype=PT_DTYPE)
+        validation_vectors = validation_vectors[:idx]
+        validation_labels = validation_labels[:idx]
 
-        return model.score(validation_vectors, validation_labels)
+        return regressor.score(validation_vectors, validation_labels)
