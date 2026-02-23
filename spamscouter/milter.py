@@ -47,6 +47,10 @@ class SpamScouterMilter(Milter.Base):
         # tell the MTA to continue
         return Milter.CONTINUE
 
+    @staticmethod
+    def _spam_probability(regressor, vector, previous=1):
+        return min(max(regressor.predict([vector])[0], 0), previous)
+
     def eom(self):
         # do some logging
         print('Processing email for recipients:', self.recipients)
@@ -59,13 +63,12 @@ class SpamScouterMilter(Milter.Base):
         vector = VECTORIZER.infer_vector(TOKENIZER.encode(text).tokens)
 
         # predict the global spam probability
-        spam_probability = REGRESSOR.predict([vector])[0]
+        spam_probability = self._spam_probability(REGRESSOR, vector)
 
         # modify the spam probability for each recipient
         for recipient in self.recipients:
             if recipient in REGRESSORS:
-                spam_probability = min(spam_probability,
-                                       REGRESSORS[recipient].predict([vector])[0])
+                spam_probability = self._spam_probability(REGRESSORS[recipient], vector, spam_probability)
 
         # add the spam probability as a header
         print('> Spam Probability:', spam_probability)

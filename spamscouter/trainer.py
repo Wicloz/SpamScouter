@@ -108,8 +108,9 @@ class Trainer:
 
     def _regressor_accuracy(self, regressor, vectors, labels):
         predictions = regressor.predict(vectors)
-        predictions = (predictions > 0.5).astype(bool)
-        return (predictions == labels).mean()
+        predictions = np.clip(predictions, 0, 1)
+        predictions[labels == False] = 1 - predictions[labels == False]
+        return np.mean(predictions)
 
     def build(self, config=None):
         with TemporaryDirectory() as temp:
@@ -237,4 +238,4 @@ class Trainer:
         validation_vectors = validation_vectors[:idx]
         validation_labels = validation_labels[:idx]
 
-        return regressor.score(validation_vectors, validation_labels)
+        return 1 - self._regressor_accuracy(regressor, validation_vectors, validation_labels)
