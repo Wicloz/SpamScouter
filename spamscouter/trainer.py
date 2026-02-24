@@ -23,7 +23,7 @@ CONNECTORS = {
 
 
 CS = ConfigurationSpace()
-CS.add(Integer('document_vector_size', (100, 1000), default=200))
+CS.add(Integer('document_vector_size', (100, 1000), default=500))
 CS.add(Categorical('message_processing_method', MESSAGE_PROCESS_METHODS.keys(), default='body_unicode'))
 CS.add(Float('vocab_size_per_message', (0, 2), default=1, distribution=Beta(4, 4)))
 CS.add(Integer('vocab_token_min_count', (1, 10000), default=100, log=True))
@@ -34,7 +34,7 @@ REGRESSORS = {
     'NearestNeighbors': neighbors.KNeighborsRegressor,
 }
 
-regressor_hp = Categorical('regressor_type', REGRESSORS.keys(), default='SVM')
+regressor_hp = Categorical('regressor_type', REGRESSORS.keys(), default='DecisionTree')
 CS.add(regressor_hp)
 
 HYPER_PARAMETERS = {
