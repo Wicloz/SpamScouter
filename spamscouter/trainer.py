@@ -1,5 +1,4 @@
-from .connectors.imap import ConnectorIMAP
-from .connectors.cache import ConnectorCache
+from .connectors import ConnectorIMAP, ConnectorCache
 from tokenizers import BertWordPieceTokenizer
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from collections import Counter
