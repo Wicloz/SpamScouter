@@ -14,4 +14,4 @@ RUN apt-get update && apt-get install --no-install-recommends --no-install-sugge
 COPY --from=pip /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/
 
 EXPOSE 3639
-ENTRYPOINT [ "python3", "-um", "spamscouter.milter", "/var/lib/spamscouter/", "--address", "3639" ]
+CMD [ "python3", "-um", "spamscouter.milter", "/var/lib/spamscouter/", "--address", "3639" ]

@@ -13,4 +13,4 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install --no-install-recommends --no-install-suggests --assume-yes libmilter-dev pandoc && rm -rf /var/*/apt/
 COPY --from=pip /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/
 
-ENTRYPOINT [ "python3", "/src/trainer.py" ]
+CMD [ "python3", "/src/trainer.py" ]
