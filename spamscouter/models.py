@@ -4,6 +4,34 @@ import numpy as np
 from tempfile import TemporaryDirectory
 from tqdm import tqdm, trange
 from math import ceil
+import pickle
+from abc import ABC
+
+
+class SpamRegressorMixin(ABC):
+    def save(self, path):
+        with open(path, 'wb') as fp:
+            pickle.dump(self, fp)
+
+    @staticmethod
+    def load(path):
+        with open(path, 'rb') as fp:
+            return pickle.load(fp)
+
+    def predict(self, vectors):
+        return np.clip(super().predict(vectors), 0, 1)
+
+    def fit(self, seed, vectors, labels):
+        super().fit(vectors, labels)
+
+    def accuracy(self, vectors, labels):
+        predictions = self.predict(vectors)
+        predictions[labels == False] = 1 - predictions[labels == False]
+        return np.mean(predictions)
+
+    @staticmethod
+    def hyper_parameter_space():
+        return []
 
 
 class SpamRegressor(nn.Module):
