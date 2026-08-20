@@ -38,19 +38,24 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
     BATCH_SIZE = 100
     VALIDATION_FRACTION = 0.1
     EARLY_STOPPING_PATIENCE = 10
+    MAX_EPOCHS = 1000
     LEARNING_RATE = 0.001
+    WEIGHT_DECAY = 0.0001
     ADAM_BETAS = (0.9, 0.999)
     ADAM_EPSILON = 1e-8
     PROBABILITY_EPSILON = 1e-7
+    VARIANCE_EPSILON = 1e-12
     PARAMETERS = ('W1', 'b1', 'W2', 'b2')
+    DECAYED_PARAMETERS = ('W1', 'W2')
 
     @staticmethod
     def _sigmoid(x):
-        return 1 / (1 + np.exp(-x))
+        exponential = np.exp(-np.abs(x))
+        return np.where(x >= 0, 1 / (1 + exponential), exponential / (1 + exponential))
 
-    @staticmethod
-    def _sigmoid_prime(x):
-        x = 1 / (1 + np.exp(-x))
+    @classmethod
+    def _sigmoid_prime(cls, x):
+        x = cls._sigmoid(x)
         return x * (1 - x)
 
     @staticmethod
@@ -77,8 +82,21 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
     def _clipped_prime(x):
         return ((x > 0) & (x < 1)).astype(x.dtype)
 
-    def __init__(self, input_size, hidden_layer_size=100, final_activation_function='sigmoid', random_state=None):
+    def __init__(self, input_size, hidden_layer_size=100, final_activation_function='sigmoid',
+                 learning_rate=LEARNING_RATE, weight_decay=WEIGHT_DECAY, balance_classes=True,
+                 random_state=None):
         self.rng = np.random.default_rng(random_state)
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.balance_classes = balance_classes
+
+        # neutral until fit() measures the training split
+        self.positive_weight = 1.0
+        self.negative_weight = 1.0
+
+        # identity transform until fit() measures the training data
+        self.input_mean = np.zeros((input_size, 1))
+        self.input_std = np.ones((input_size, 1))
 
         self.W1 = self.rng.normal(size=(hidden_layer_size, input_size)) * np.sqrt(2 / input_size)
         self.b1 = np.zeros((hidden_layer_size, 1))
@@ -107,11 +125,37 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
 
     def predict(self, vectors):
         vectors = np.atleast_2d(vectors).T
-        vectors = self.W1 @ vectors + self.b1
-        vectors = self.a1(vectors)
-        vectors = self.W2 @ vectors + self.b2
-        vectors = self.a2(vectors)
-        return vectors
+        vectors = self._standardise(vectors)
+        return self._forward(vectors)[3]
+
+    def _standardise(self, vectors):
+        return (vectors - self.input_mean) / self.input_std
+
+    def _split_stratified(self, labels):
+        validation_indices = []
+        training_indices = []
+
+        for class_indices in (np.flatnonzero(labels <= 0.5), np.flatnonzero(labels > 0.5)):
+            class_indices = self.rng.permutation(class_indices)
+
+            if class_indices.size < 2:
+                training_indices.append(class_indices)
+                continue
+
+            split_idx = int(round(class_indices.size * self.VALIDATION_FRACTION))
+            split_idx = min(max(split_idx, 1), class_indices.size - 1)
+            validation_indices.append(class_indices[:split_idx])
+            training_indices.append(class_indices[split_idx:])
+
+        validation_indices = np.concatenate(validation_indices) if validation_indices else np.empty(0, dtype=int)
+        training_indices = np.concatenate(training_indices)
+
+        if validation_indices.size == 0:
+            # every class had a single member; fall back to holding one sample out
+            training_indices = self.rng.permutation(training_indices)
+            validation_indices, training_indices = training_indices[:1], training_indices[1:]
+
+        return validation_indices, training_indices
 
     def _forward(self, vectors):
         z1 = self.W1 @ vectors + self.b1
@@ -121,19 +165,22 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
         return z1, a1, z2, a2
 
     @classmethod
-    def _binary_cross_entropy(cls, predictions, labels):
+    def _binary_cross_entropy(cls, predictions, labels, weights=1):
         predictions = np.clip(predictions, cls.PROBABILITY_EPSILON, 1 - cls.PROBABILITY_EPSILON)
-        return -np.mean(labels * np.log(predictions) + (1 - labels) * np.log(1 - predictions))
+        return -np.mean(weights * (labels * np.log(predictions) + (1 - labels) * np.log(1 - predictions)))
 
-    def _gradients(self, vectors, labels):
+    def _sample_weights(self, labels):
+        return np.where(labels > 0.5, self.positive_weight, self.negative_weight)
+
+    def _gradients(self, vectors, labels, weights=1):
         z1, a1, z2, a2 = self._forward(vectors)
 
         # d(BCE)/d(a2). For the sigmoid output the a2 * (1 - a2) denominator here is
         # exactly what a2p returns below, so the two cancel and this reduces to the
-        # usual (a2 - labels); keeping it explicit is what lets the other three final
-        # activations share one backward pass.
+        # usual (a2 - labels); keeping it explicit is what lets every final activation
+        # share one backward pass.
         predictions = np.clip(a2, self.PROBABILITY_EPSILON, 1 - self.PROBABILITY_EPSILON)
-        delta2 = (predictions - labels) / (predictions * (1 - predictions)) / labels.size
+        delta2 = weights * (predictions - labels) / (predictions * (1 - predictions)) / labels.size
         delta2 = delta2 * self.a2p(z2)
         delta1 = np.outer(self.W2, delta2) * self.a1p(z1)
 
@@ -151,17 +198,38 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
         if vectors.shape[1] < 2:
             raise ValueError('need at least two samples to fit')
 
-        train_eval_perm = self.rng.permutation(vectors.shape[1])
-        vectors = vectors[:, train_eval_perm]
-        labels = labels[train_eval_perm]
+        validation_indices, training_indices = self._split_stratified(labels)
 
-        train_eval_split_idx = int(round(vectors.shape[1] * self.VALIDATION_FRACTION))
-        train_eval_split_idx = min(max(train_eval_split_idx, 1), vectors.shape[1] - 1)
+        valid_vectors = vectors[:, validation_indices]
+        train_vectors = vectors[:, training_indices]
+        valid_labels = labels[validation_indices]
+        train_labels = labels[training_indices]
 
-        valid_vectors = vectors[:, :train_eval_split_idx]
-        train_vectors = vectors[:, train_eval_split_idx:]
-        valid_labels = labels[:train_eval_split_idx]
-        train_labels = labels[train_eval_split_idx:]
+        # statistics come from the training split only, so the validation split stays honest
+        self.input_mean = train_vectors.mean(axis=1, keepdims=True)
+        self.input_std = train_vectors.std(axis=1, keepdims=True)
+        self.input_std[self.input_std < self.VARIANCE_EPSILON] = 1
+
+        valid_vectors = self._standardise(valid_vectors)
+        train_vectors = self._standardise(train_vectors)
+
+        # The HPO cache is deliberately 50/50 but real mailboxes are not, and
+        # spamassassin.cf keys off absolute probability thresholds. Re-weighting each
+        # class to half the total keeps the output centred the same way regardless of
+        # the incoming ratio -- and evaluates to exactly 1.0 on balanced data, so it
+        # cannot perturb an HPO run.
+        if self.balance_classes:
+            positives = np.count_nonzero(train_labels > 0.5)
+            negatives = train_labels.size - positives
+
+            # with only one class present there is nothing to rebalance against, and
+            # weighting it would just rescale the loss and skew early stopping
+            if positives and negatives:
+                self.positive_weight = train_labels.size / (2 * positives)
+                self.negative_weight = train_labels.size / (2 * negatives)
+
+        train_weights = self._sample_weights(train_labels)
+        valid_weights = self._sample_weights(valid_labels)
 
         beta1, beta2 = self.ADAM_BETAS
         moment1 = {name: np.zeros_like(getattr(self, name)) for name in self.PARAMETERS}
@@ -172,8 +240,8 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
         incumbent_parameters = {name: getattr(self, name).copy() for name in self.PARAMETERS}
         epochs_without_new_incumbent = 0
 
-        with tqdm(desc='classifier Epochs') as progress:
-            while True:
+        with tqdm(desc='classifier Epochs', total=self.MAX_EPOCHS) as progress:
+            for _ in range(self.MAX_EPOCHS):
                 epoch_perm = self.rng.permutation(train_vectors.shape[1])
                 steps = ceil(train_vectors.shape[1] / self.BATCH_SIZE)
                 deficit = -train_vectors.shape[1] % self.BATCH_SIZE
@@ -187,7 +255,7 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
                     batch_indices = epoch_perm[idx:idx + batch_size]
                     idx += batch_size
 
-                    gradients = self._gradients(train_vectors[:, batch_indices], train_labels[batch_indices])
+                    gradients = self._gradients(train_vectors[:, batch_indices], train_labels[batch_indices], train_weights[batch_indices])
                     timestep += 1
 
                     for name, gradient in gradients.items():
@@ -195,10 +263,16 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
                         moment2[name] = beta2 * moment2[name] + (1 - beta2) * gradient ** 2
                         corrected1 = moment1[name] / (1 - beta1 ** timestep)
                         corrected2 = moment2[name] / (1 - beta2 ** timestep)
-                        setattr(self, name, getattr(self, name) - self.LEARNING_RATE * corrected1 / (np.sqrt(corrected2) + self.ADAM_EPSILON))
+
+                        value = getattr(self, name)
+                        update = corrected1 / (np.sqrt(corrected2) + self.ADAM_EPSILON)
+                        if name in self.DECAYED_PARAMETERS:
+                            update = update + self.weight_decay * value
+
+                        setattr(self, name, value - self.learning_rate * update)
 
                 progress.update(1)
-                eval_loss = self._binary_cross_entropy(self._forward(valid_vectors)[3], valid_labels)
+                eval_loss = self._binary_cross_entropy(self._forward(valid_vectors)[3], valid_labels, valid_weights)
 
                 if eval_loss < incumbent_loss:
                     incumbent_loss = eval_loss
