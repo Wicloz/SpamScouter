@@ -37,7 +37,7 @@ def _part_to_markdown(part):
         with open(input_file, 'wb') as fp:
             fp.write(payload)
 
-        run(['pandoc', input_file, '-o', output_file])
+        run(['pandoc', '--sandbox', input_file, '--output', output_file])
 
         if not exists(output_file):
             return ''
