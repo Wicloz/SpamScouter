@@ -1,27 +1,31 @@
-from smac import MultiFidelityFacade, Scenario
-from smac.main.config_selector import ConfigSelector
-from smac.intensifier.hyperband_utils import get_n_trials_for_hyperband_multifidelity
-from spamscouter.trainer import Trainer, CS
-from spamscouter.settings import BaseSettings
-from os import cpu_count
-from sys import argv
-
-
-class ScouterSettings(BaseSettings):
-    CONNECTOR = 'CACHE'
-    cache_path = '.cache/'
+from os import environ
+from argparse import ArgumentParser
 
 
 if __name__ == '__main__':
+    environ['TOKENIZERS_PARALLELISM'] = 'false'
+
+    parser = ArgumentParser()
+    parser.add_argument('-r', '--rounds', type=int, default=1)
+    parser.add_argument('-w', '--workers', type=int, default=4)
+    argv = parser.parse_args()
+
+    from smac import MultiFidelityFacade, Scenario
+    from smac.main.config_selector import ConfigSelector
+    from smac.intensifier.hyperband_utils import determine_HB
+
+    from spamscouter.trainer import Trainer, CS
+    from spamscouter.settings import BaseSettings
+
+    class ScouterSettings(BaseSettings):
+        CONNECTOR = 'CACHE'
+        cache_path = '.cache/'
+
     trainer = Trainer(ScouterSettings())
     trainer.initialize_hpo()
 
-    multiplier = int(argv[1])
-    trials = get_n_trials_for_hyperband_multifidelity(
-        min_budget=trainer.min_budget,
-        max_budget=trainer.max_budget,
-        total_budget=trainer.max_budget * multiplier,
-    )
+    trials_per_round = int(determine_HB(min_budget=trainer.min_budget, max_budget=trainer.max_budget)['trials_used'])
+    trials = argv.rounds * trials_per_round
 
     scenario = Scenario(
         configspace=CS,
@@ -29,7 +33,7 @@ if __name__ == '__main__':
         max_budget=trainer.max_budget,
         deterministic=True,
         n_trials=trials,
-        n_workers=cpu_count() - 1,
+        n_workers=argv.workers,
         output_directory='.smac/',
     )
 
