@@ -108,4 +108,4 @@ class Message:
 
     def text(self, config):
         method = MESSAGE_PROCESS_METHODS[config['message_processing_method']]
-        return method(self.email)
+        return method(self.email)[:config['max_message_characters']]
