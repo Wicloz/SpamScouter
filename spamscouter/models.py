@@ -243,8 +243,8 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
         # The HPO cache is deliberately 50/50 but real mailboxes are not, and
         # spamassassin.cf keys off absolute probability thresholds. Re-weighting each
         # class to half the total keeps the output centred the same way regardless of
-        # the incoming ratio -- and evaluates to exactly 1.0 on balanced data, so it
-        # cannot perturb an HPO run.
+        # the incoming ratio. On an exactly balanced split both weights are 1.0; on a
+        # random budget slice of a balanced cache they sit within a few percent of it.
         if self.balance_classes:
             positives = np.count_nonzero(train_labels > 0.5)
             negatives = train_labels.size - positives
