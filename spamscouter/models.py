@@ -41,7 +41,7 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
     EARLY_STOPPING_PATIENCE = 10
     MAX_EPOCHS = 1000
     LEARNING_RATE = 0.001
-    WEIGHT_DECAY = 0.0001
+    WEIGHT_DECAY = 3.0
     ADAM_BETAS = (0.9, 0.999)
     ADAM_EPSILON = 1e-8
     PROBABILITY_EPSILON = 1e-7
@@ -103,6 +103,17 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
     def _initialise(self, input_size):
         if self.final_activation_function not in self.FINAL_ACTIVATION_FUNCTIONS:
             raise ValueError(f'unknown final activation function: {self.final_activation_function}')
+
+        if self.hidden_layer_size < 1:
+            raise ValueError(f'hidden_layer_size must be at least 1, got {self.hidden_layer_size}')
+
+        # decoupled decay shrinks the weights by (1 - learning_rate * weight_decay) every
+        # step, so at 1 they collapse to zero and beyond it they alternate sign and diverge
+        if self.learning_rate * self.weight_decay >= 1:
+            raise ValueError(
+                'learning_rate * weight_decay must be below 1, got '
+                f'{self.learning_rate} * {self.weight_decay} = {self.learning_rate * self.weight_decay}'
+            )
 
         self.rng_ = np.random.default_rng(self.random_state)
 

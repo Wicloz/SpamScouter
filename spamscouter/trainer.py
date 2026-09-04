@@ -35,7 +35,7 @@ REGRESSORS = {
     'NeuralNetwork': NeuralNetworkRegressor,
 }
 
-regressor_hp = Categorical('regressor_type', REGRESSORS.keys(), default='DecisionTree')
+regressor_hp = Categorical('regressor_type', REGRESSORS.keys(), default='NeuralNetwork')
 CS.add(regressor_hp)
 
 HYPER_PARAMETERS = {
@@ -48,7 +48,7 @@ HYPER_PARAMETERS = {
         Integer('hidden_layer_size', (10, 1000), default=100, log=True),
         Categorical('final_activation_function', NeuralNetworkRegressor.FINAL_ACTIVATION_FUNCTIONS, default='sigmoid'),
         Float('learning_rate', (1e-5, 1e-1), default=NeuralNetworkRegressor.LEARNING_RATE, log=True),
-        Float('weight_decay', (1e-6, 1e-1), default=NeuralNetworkRegressor.WEIGHT_DECAY, log=True),
+        Float('weight_decay', (1e-3, 1e1), default=NeuralNetworkRegressor.WEIGHT_DECAY, log=True),
         Categorical('balance_classes', (True, False), default=True),
     ],
 }
