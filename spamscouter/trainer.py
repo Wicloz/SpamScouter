@@ -8,6 +8,7 @@ from pathlib import Path
 from ConfigSpace import ConfigurationSpace, Categorical, Integer, Float, Beta, EqualsCondition
 from random import shuffle
 from .message import MESSAGE_PROCESS_METHODS
+from .models import NeuralNetworkRegressor
 import json
 from tqdm import trange, tqdm
 import numpy as np
@@ -31,6 +32,7 @@ REGRESSORS = {
     'SVM': svm.SVR,
     'DecisionTree': tree.DecisionTreeRegressor,
     'NearestNeighbors': neighbors.KNeighborsRegressor,
+    'NeuralNetwork': NeuralNetworkRegressor,
 }
 
 regressor_hp = Categorical('regressor_type', REGRESSORS.keys(), default='DecisionTree')
@@ -41,6 +43,13 @@ HYPER_PARAMETERS = {
     'DecisionTree': [],
     'NearestNeighbors': [
         Integer('n_neighbors', (1, 100), default=5),
+    ],
+    'NeuralNetwork': [
+        Integer('hidden_layer_size', (10, 1000), default=100, log=True),
+        Categorical('final_activation_function', NeuralNetworkRegressor.FINAL_ACTIVATION_FUNCTIONS, default='sigmoid'),
+        Float('learning_rate', (1e-5, 1e-1), default=NeuralNetworkRegressor.LEARNING_RATE, log=True),
+        Float('weight_decay', (1e-6, 1e-1), default=NeuralNetworkRegressor.WEIGHT_DECAY, log=True),
+        Categorical('balance_classes', (True, False), default=True),
     ],
 }
 
@@ -54,6 +63,7 @@ SEED_PARAMETERS = {
     'SVM': None,
     'DecisionTree': 'random_state',
     'NearestNeighbors': None,
+    'NeuralNetwork': 'random_state',
 }
 
 

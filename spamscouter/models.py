@@ -4,6 +4,7 @@ from math import ceil
 import pickle
 from abc import ABC
 from sklearn.base import RegressorMixin, BaseEstimator
+from sklearn.utils.validation import check_is_fitted, validate_data
 
 
 class SpamRegressorMixin(ABC):
@@ -45,8 +46,8 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
     ADAM_EPSILON = 1e-8
     PROBABILITY_EPSILON = 1e-7
     VARIANCE_EPSILON = 1e-12
-    PARAMETERS = ('W1', 'b1', 'W2', 'b2')
-    DECAYED_PARAMETERS = ('W1', 'W2')
+    PARAMETERS = ('W1_', 'b1_', 'W2_', 'b2_')
+    DECAYED_PARAMETERS = ('W1_', 'W2_')
 
     @staticmethod
     def _sigmoid(x):
@@ -82,61 +83,71 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
     def _clipped_prime(x):
         return ((x > 0) & (x < 1)).astype(x.dtype)
 
-    def __init__(self, input_size, hidden_layer_size=100, final_activation_function='sigmoid',
+    def __init__(self, hidden_layer_size=100, final_activation_function='sigmoid',
                  learning_rate=LEARNING_RATE, weight_decay=WEIGHT_DECAY, balance_classes=True,
                  random_state=None):
-        self.rng = np.random.default_rng(random_state)
+        self.hidden_layer_size = hidden_layer_size
+        self.final_activation_function = final_activation_function
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.balance_classes = balance_classes
+        self.random_state = random_state
 
-        # neutral until fit() measures the training split
-        self.positive_weight = 1.0
-        self.negative_weight = 1.0
+    def __sklearn_tags__(self):
+        tags = super().__sklearn_tags__()
+        # a probability model rather than a general regressor: the output is bounded to
+        # [0, 1], so it cannot score well against sklearn's arbitrary continuous targets
+        tags.regressor_tags.poor_score = True
+        return tags
 
-        # identity transform until fit() measures the training data
-        self.input_mean = np.zeros((input_size, 1))
-        self.input_std = np.ones((input_size, 1))
+    def _initialise(self, input_size):
+        if self.final_activation_function not in self.FINAL_ACTIVATION_FUNCTIONS:
+            raise ValueError(f'unknown final activation function: {self.final_activation_function}')
 
-        self.W1 = self.rng.normal(size=(hidden_layer_size, input_size)) * np.sqrt(2 / input_size)
-        self.b1 = np.zeros((hidden_layer_size, 1))
-        self.a1 = self._relu
-        self.a1p = self._relu_prime
+        self.rng_ = np.random.default_rng(self.random_state)
 
-        if final_activation_function not in self.FINAL_ACTIVATION_FUNCTIONS:
-            raise ValueError(f'unknown final activation function: {final_activation_function}')
+        self.W1_ = self.rng_.normal(size=(self.hidden_layer_size, input_size)) * np.sqrt(2 / input_size)
+        self.b1_ = np.zeros((self.hidden_layer_size, 1))
+        self.a1_ = self._relu
+        self.a1p_ = self._relu_prime
 
-        if final_activation_function == 'sigmoid':
-            self.a2 = self._sigmoid
-            self.a2p = self._sigmoid_prime
-            self.W2 = self.rng.normal(size=hidden_layer_size) * np.sqrt(1 / hidden_layer_size)
+        if self.final_activation_function == 'sigmoid':
+            self.a2_ = self._sigmoid
+            self.a2p_ = self._sigmoid_prime
+            self.W2_ = self.rng_.normal(size=self.hidden_layer_size) * np.sqrt(1 / self.hidden_layer_size)
 
-        if final_activation_function == 'linear':
-            self.a2 = self._linear
-            self.a2p = self._linear_prime
-            self.W2 = self.rng.normal(size=hidden_layer_size) * np.sqrt(1 / hidden_layer_size)
+        if self.final_activation_function == 'linear':
+            self.a2_ = self._linear
+            self.a2p_ = self._linear_prime
+            self.W2_ = self.rng_.normal(size=self.hidden_layer_size) * np.sqrt(1 / self.hidden_layer_size)
 
-        if final_activation_function == 'clipped':
-            self.a2 = self._clipped
-            self.a2p = self._clipped_prime
-            self.W2 = self.rng.normal(size=hidden_layer_size) * np.sqrt(1 / hidden_layer_size)
+        if self.final_activation_function == 'clipped':
+            self.a2_ = self._clipped
+            self.a2p_ = self._clipped_prime
+            self.W2_ = self.rng_.normal(size=self.hidden_layer_size) * np.sqrt(1 / self.hidden_layer_size)
 
-        self.b2 = np.zeros(1)
+        self.b2_ = np.zeros(1)
 
-    def predict(self, vectors):
-        vectors = np.atleast_2d(vectors).T
-        vectors = self._standardise(vectors)
-        return self._forward(vectors)[3]
+        # identity transform and neutral weights until fit() measures the training split
+        self.input_mean_ = np.zeros((input_size, 1))
+        self.input_std_ = np.ones((input_size, 1))
+        self.positive_weight_ = 1.0
+        self.negative_weight_ = 1.0
+
+    def predict(self, X):
+        check_is_fitted(self)
+        vectors = validate_data(self, X, reset=False, dtype=np.float64)
+        return self._forward(self._standardise(vectors.T))[3]
 
     def _standardise(self, vectors):
-        return (vectors - self.input_mean) / self.input_std
+        return (vectors - self.input_mean_) / self.input_std_
 
     def _split_stratified(self, labels):
         validation_indices = []
         training_indices = []
 
         for class_indices in (np.flatnonzero(labels <= 0.5), np.flatnonzero(labels > 0.5)):
-            class_indices = self.rng.permutation(class_indices)
+            class_indices = self.rng_.permutation(class_indices)
 
             if class_indices.size < 2:
                 training_indices.append(class_indices)
@@ -152,16 +163,16 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
 
         if validation_indices.size == 0:
             # every class had a single member; fall back to holding one sample out
-            training_indices = self.rng.permutation(training_indices)
+            training_indices = self.rng_.permutation(training_indices)
             validation_indices, training_indices = training_indices[:1], training_indices[1:]
 
         return validation_indices, training_indices
 
     def _forward(self, vectors):
-        z1 = self.W1 @ vectors + self.b1
-        a1 = self.a1(z1)
-        z2 = self.W2 @ a1 + self.b2
-        a2 = self.a2(z2)
+        z1 = self.W1_ @ vectors + self.b1_
+        a1 = self.a1_(z1)
+        z2 = self.W2_ @ a1 + self.b2_
+        a2 = self.a2_(z2)
         return z1, a1, z2, a2
 
     @classmethod
@@ -170,7 +181,7 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
         return -np.mean(weights * (labels * np.log(predictions) + (1 - labels) * np.log(1 - predictions)))
 
     def _sample_weights(self, labels):
-        return np.where(labels > 0.5, self.positive_weight, self.negative_weight)
+        return np.where(labels > 0.5, self.positive_weight_, self.negative_weight_)
 
     def _gradients(self, vectors, labels, weights=1):
         z1, a1, z2, a2 = self._forward(vectors)
@@ -181,22 +192,27 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
         # share one backward pass.
         predictions = np.clip(a2, self.PROBABILITY_EPSILON, 1 - self.PROBABILITY_EPSILON)
         delta2 = weights * (predictions - labels) / (predictions * (1 - predictions)) / labels.size
-        delta2 = delta2 * self.a2p(z2)
-        delta1 = np.outer(self.W2, delta2) * self.a1p(z1)
+        delta2 = delta2 * self.a2p_(z2)
+        delta1 = np.outer(self.W2_, delta2) * self.a1p_(z1)
 
         return {
-            'W1': delta1 @ vectors.T,
-            'b1': delta1.sum(axis=1, keepdims=True),
-            'W2': a1 @ delta2,
-            'b2': np.atleast_1d(delta2.sum()),
+            'W1_': delta1 @ vectors.T,
+            'b1_': delta1.sum(axis=1, keepdims=True),
+            'W2_': a1 @ delta2,
+            'b2_': np.atleast_1d(delta2.sum()),
         }
 
-    def fit(self, vectors, labels):
-        vectors = np.atleast_2d(vectors).T
-        labels = np.asarray(labels, dtype=float)
+    def fit(self, X, y):
+        # sklearn requires these exact parameter names; everything downstream of the
+        # validation call keeps the descriptive ones
+        vectors, labels = validate_data(self, X, y, dtype=np.float64, y_numeric=True)
 
-        if vectors.shape[1] < 2:
-            raise ValueError('need at least two samples to fit')
+        if vectors.shape[0] < 2:
+            raise ValueError(f'need at least two samples to fit, got n_samples={vectors.shape[0]}')
+
+        self._initialise(vectors.shape[1])
+        vectors = vectors.T
+        labels = labels.astype(float)
 
         validation_indices, training_indices = self._split_stratified(labels)
 
@@ -206,9 +222,9 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
         train_labels = labels[training_indices]
 
         # statistics come from the training split only, so the validation split stays honest
-        self.input_mean = train_vectors.mean(axis=1, keepdims=True)
-        self.input_std = train_vectors.std(axis=1, keepdims=True)
-        self.input_std[self.input_std < self.VARIANCE_EPSILON] = 1
+        self.input_mean_ = train_vectors.mean(axis=1, keepdims=True)
+        self.input_std_ = train_vectors.std(axis=1, keepdims=True)
+        self.input_std_[self.input_std_ < self.VARIANCE_EPSILON] = 1
 
         valid_vectors = self._standardise(valid_vectors)
         train_vectors = self._standardise(train_vectors)
@@ -225,8 +241,8 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
             # with only one class present there is nothing to rebalance against, and
             # weighting it would just rescale the loss and skew early stopping
             if positives and negatives:
-                self.positive_weight = train_labels.size / (2 * positives)
-                self.negative_weight = train_labels.size / (2 * negatives)
+                self.positive_weight_ = train_labels.size / (2 * positives)
+                self.negative_weight_ = train_labels.size / (2 * negatives)
 
         train_weights = self._sample_weights(train_labels)
         valid_weights = self._sample_weights(valid_labels)
@@ -242,7 +258,7 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
 
         with tqdm(desc='classifier Epochs', total=self.MAX_EPOCHS) as progress:
             for _ in range(self.MAX_EPOCHS):
-                epoch_perm = self.rng.permutation(train_vectors.shape[1])
+                epoch_perm = self.rng_.permutation(train_vectors.shape[1])
                 steps = ceil(train_vectors.shape[1] / self.BATCH_SIZE)
                 deficit = -train_vectors.shape[1] % self.BATCH_SIZE
                 deficit_per_step = ceil(deficit / steps)
