@@ -121,6 +121,19 @@ class Trainer:
         predictions[labels == False] = 1 - predictions[labels == False]
         return np.mean(predictions)
 
+    def _regressor_brier_score(self, regressor, vectors, labels):
+        predictions = np.clip(regressor.predict(vectors), 0, 1)
+
+        positives = np.count_nonzero(labels)
+        negatives = labels.size - positives
+
+        if positives and negatives:
+            weights = np.where(labels, labels.size / (2 * positives), labels.size / (2 * negatives))
+        else:
+            weights = 1
+
+        return np.mean(weights * (predictions - labels) ** 2)
+
     def build(self, config=None):
         with TemporaryDirectory() as temp:
             temp = Path(temp)
@@ -247,4 +260,4 @@ class Trainer:
         validation_vectors = validation_vectors[:idx]
         validation_labels = validation_labels[:idx]
 
-        return 1 - self._regressor_accuracy(regressor, validation_vectors, validation_labels)
+        return self._regressor_brier_score(regressor, validation_vectors, validation_labels)
