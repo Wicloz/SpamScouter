@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 from shutil import move, rmtree
 from pathlib import Path
 from ConfigSpace import ConfigurationSpace, Categorical, Integer, Float, Beta, EqualsCondition
-from random import shuffle
+from random import Random
 from .message import MESSAGE_PROCESS_METHODS
 from .models import NeuralNetworkRegressor
 import json
@@ -206,7 +206,7 @@ class Trainer:
     def initialize_hpo(self):
         connector = CONNECTORS[self.settings.CONNECTOR](self.settings)
         accessors = list(connector.iterate_all_message_accessors())
-        shuffle(accessors)
+        Random('hpo').shuffle(accessors)
 
         split_index = int(round(len(accessors) * 0.1))
         self.validation_accessors = accessors[:split_index]
