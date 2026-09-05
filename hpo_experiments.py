@@ -1,5 +1,10 @@
 from os import environ
 from argparse import ArgumentParser
+from ConfigSpace import Configuration
+
+
+# temporary patch for upstream bug in SMAC/CS
+Configuration.__eq__ = lambda self, other: isinstance(other, Configuration) and dict(self) == dict(other)
 
 
 if __name__ == '__main__':
