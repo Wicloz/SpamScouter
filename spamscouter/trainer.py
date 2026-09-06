@@ -28,7 +28,6 @@ CS.add(Categorical('message_processing_method', MESSAGE_PROCESS_METHODS.keys(), 
 CS.add(Float('vocab_size_per_message', (0, 2), default=1, distribution=Beta(4, 4)))
 CS.add(Integer('vocab_token_min_count', (1, 10000), default=100, log=True))
 CS.add(Integer('max_message_characters', (1000, 500000), default=500000, log=True))
-CS.add(Integer('doc2vec_epochs', (1, 8), default=3, log=True))
 
 REGRESSORS = {
     'SVM': svm.SVR,
@@ -84,19 +83,18 @@ class Trainer:
         if seed is not None:
             seed_kwargs['seed'] = seed
             seed_kwargs['workers'] = 1
-        vectorizer = Doc2Vec(vector_size=config['document_vector_size'], min_count=config['vocab_token_min_count'], **seed_kwargs)
+        vectorizer = Doc2Vec(epochs=1, vector_size=config['document_vector_size'], min_count=config['vocab_token_min_count'], **seed_kwargs)
 
         frequencies = Counter()
         for message in tqdm(message_iterator_fn(), total=message_count_fn(), desc='Building vocabulary'):
             frequencies.update(tokenizer.encode(message.text(config)).tokens)
         vectorizer.build_vocab_from_freq(frequencies)
 
-        for _ in trange(config['doc2vec_epochs'], desc='doc2vec Epochs'):
-            count = message_count_fn()
-            vectorizer.train(
-                tqdm(iterable=(TaggedDocument(tokenizer.encode(message.text(config)).tokens, [message.uid]) for message in message_iterator_fn()), total=count),
-                epochs=1, total_examples=count,
-            )
+        count = message_count_fn()
+        vectorizer.train(tqdm(iterable=(
+            TaggedDocument(tokenizer.encode(message.text(config)).tokens, [message.uid])
+            for message in message_iterator_fn()
+        ), desc='Training doc2vec', total=count), total_examples=count, epochs=vectorizer.epochs)
 
         return tokenizer, vectorizer
 
