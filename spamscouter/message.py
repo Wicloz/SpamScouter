@@ -6,7 +6,7 @@ from os.path import exists
 
 
 PANDOC_SUPPORTED_EXTENSIONS = {
-    '.xml', '.html', '.xhtml', '.htm',
+    '.xml', '.html', '.htm', '.xhtml', '.xhtm',
     '.docx', '.rtf', '.txt', '.md', '.odt',
     '.tex', '.epub',
 }
