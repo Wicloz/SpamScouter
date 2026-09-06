@@ -207,7 +207,8 @@ class Trainer:
 
     def initialize_hpo(self):
         connector = CONNECTORS[self.settings.CONNECTOR](self.settings)
-        accessors = list(connector.iterate_all_message_accessors())
+
+        accessors = sorted(connector.iterate_all_message_accessors())
         Random('hpo').shuffle(accessors)
 
         split_index = int(round(len(accessors) * 0.1))
