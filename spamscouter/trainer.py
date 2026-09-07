@@ -26,8 +26,8 @@ CS = ConfigurationSpace()
 CS.add(Integer('document_vector_size', (100, 1000), default=766))
 CS.add(Categorical('message_processing_method', MESSAGE_PROCESS_METHODS.keys(), default='body_unicode'))
 CS.add(Float('vocab_size_per_message', (0, 2), default=1.1588915949217, distribution=Beta(4, 4)))
-CS.add(Integer('vocab_token_min_count', (1, 10000), default=35, log=True))
-CS.add(Integer('max_message_characters', (1000, 500000), default=6873, log=True))
+CS.add(Integer('vocab_token_min_count', (1, 1000), default=35, log=True))
+CS.add(Integer('max_message_characters', (1000, 1000000), default=6873, log=True))
 
 REGRESSORS = {
     'SVM': svm.SVR,
