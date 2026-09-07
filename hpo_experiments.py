@@ -64,6 +64,7 @@ if __name__ == '__main__':
 
     scenario = Scenario(
         configspace=CS,
+        use_default_config=True,
         min_budget=trainer.min_budget,
         max_budget=trainer.max_budget,
         deterministic=True,
