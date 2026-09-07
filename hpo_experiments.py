@@ -29,10 +29,11 @@ def trials_per_hyperband_round(min_budget, max_budget, eta=3):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('-r', '--rounds', type=int, default=None)
+    parser.add_argument('-m', '--max-seconds', type=float, default=None)
     parser.add_argument('-w', '--workers', type=int, default=1)
     parser.add_argument('--cache', type=str, default='.cache/')
     parser.add_argument('--output', type=str, default='.smac/')
-    parser.add_argument('-m', '--max-seconds', type=float, default=None)
+    parser.add_argument('-n', '--name', type=str, default=None)
     argv = parser.parse_args()
 
     if argv.rounds is None and argv.max_seconds is None:
@@ -68,6 +69,7 @@ if __name__ == '__main__':
         deterministic=True,
         n_workers=argv.workers,
         output_directory=argv.output,
+        name=argv.name,
         **conditional_scenario_args,
     )
 
