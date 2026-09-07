@@ -122,17 +122,9 @@ class Trainer:
         return np.mean(predictions)
 
     def _regressor_brier_score(self, regressor, vectors, labels):
-        predictions = np.clip(regressor.predict(vectors), 0, 1)
-
-        positives = np.count_nonzero(labels)
-        negatives = labels.size - positives
-
-        if positives and negatives:
-            weights = np.where(labels, labels.size / (2 * positives), labels.size / (2 * negatives))
-        else:
-            weights = 1
-
-        return np.mean(weights * (predictions - labels) ** 2)
+        predictions = regressor.predict(vectors)
+        predictions = np.clip(predictions, 0, 1)
+        return np.mean((predictions - labels) ** 2)
 
     def build(self, config=None):
         with TemporaryDirectory() as temp:

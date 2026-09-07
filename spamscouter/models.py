@@ -240,11 +240,14 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
         valid_vectors = self._standardise(valid_vectors)
         train_vectors = self._standardise(train_vectors)
 
-        # The HPO cache is deliberately 50/50 but real mailboxes are not, and
-        # spamassassin.cf keys off absolute probability thresholds. Re-weighting each
-        # class to half the total keeps the output centred the same way regardless of
-        # the incoming ratio. On an exactly balanced split both weights are 1.0; on a
-        # random budget slice of a balanced cache they sit within a few percent of it.
+        # Re-weights each class to half the total mass, so the model learns as if spam and
+        # ham arrived equally often. The cache is 83/17 ham:spam and real mailboxes are no
+        # more balanced, so this genuinely moves the output: measured over ten paired
+        # embeddings (testing/balance_sweep.py), it lifts the mean probability assigned to
+        # ham from 0.018 to 0.041 and doubles ham-side Brier. That is a decalibration, and
+        # spamassassin.cf reads absolute bands, so it costs false positives -- which is why
+        # the search-space default is False. Kept as a hyper-parameter because on a
+        # data-starved slice the same re-weighting is worth more than it costs.
         if self.balance_classes:
             positives = np.count_nonzero(train_labels > 0.5)
             negatives = train_labels.size - positives
