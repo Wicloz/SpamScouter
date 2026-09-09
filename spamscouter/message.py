@@ -1,8 +1,12 @@
 from bs4 import UnicodeDammit, BeautifulSoup
+from logging import ERROR, getLogger
 from subprocess import run
 from tempfile import TemporaryDirectory
 from mimetypes import guess_extension
 from os.path import exists
+
+
+getLogger('bs4.dammit').setLevel(ERROR)
 
 
 PANDOC_SUPPORTED_EXTENSIONS = {
