@@ -23,11 +23,11 @@ CONNECTORS = {
 
 
 CS = ConfigurationSpace()
-CS.add(Integer('document_vector_size', (100, 1000), default=766))
-CS.add(Categorical('message_processing_method', MESSAGE_PROCESS_METHODS.keys(), default='body_unicode'))
-CS.add(Float('vocab_size_per_message', (0, 2), default=1.1588915949217, distribution=Beta(4, 4)))
-CS.add(Integer('vocab_token_min_count', (1, 1000), default=35, log=True))
-CS.add(Integer('max_message_characters', (1000, 1000000), default=6873, log=True))
+CS.add(Integer('document_vector_size', (100, 1000), default=938))
+CS.add(Categorical('message_processing_method', MESSAGE_PROCESS_METHODS.keys(), default='unicode'))
+CS.add(Float('vocab_size_per_message', (0, 2), default=1.5721482111031, distribution=Beta(4, 4)))
+CS.add(Integer('vocab_token_min_count', (1, 1000), default=1, log=True))
+CS.add(Integer('max_message_characters', (1000, 1000000), default=152486, log=True))
 
 REGRESSORS = {
     'SVM': svm.SVR,
@@ -46,7 +46,7 @@ HYPER_PARAMETERS = {
         Integer('n_neighbors', (1, 100), default=5),
     ],
     'NeuralNetwork': [
-        Integer('hidden_layer_size', (10, 1000), default=126, log=True),
+        Integer('hidden_layer_size', (10, 1000), default=495, log=True),
         Categorical('final_activation_function', NeuralNetworkRegressor.FINAL_ACTIVATION_FUNCTIONS, default='sigmoid'),
         Float('learning_rate', (1e-5, 1e-1), default=NeuralNetworkRegressor.LEARNING_RATE, log=True),
         Float('weight_decay', (1e-3, 1e1), default=NeuralNetworkRegressor.WEIGHT_DECAY, log=True),

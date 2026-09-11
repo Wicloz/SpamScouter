@@ -40,8 +40,8 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
     VALIDATION_FRACTION = 0.1
     EARLY_STOPPING_PATIENCE = 10
     MAX_EPOCHS = 1000
-    LEARNING_RATE = 0.0011440295405
-    WEIGHT_DECAY = 0.0686034437939
+    LEARNING_RATE = 0.0002441200179
+    WEIGHT_DECAY = 0.0107174081345
     ADAM_BETAS = (0.9, 0.999)
     ADAM_EPSILON = 1e-8
     PROBABILITY_EPSILON = 1e-7
@@ -83,7 +83,7 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
     def _clipped_prime(x):
         return ((x > 0) & (x < 1)).astype(x.dtype)
 
-    def __init__(self, hidden_layer_size=126, final_activation_function='sigmoid',
+    def __init__(self, hidden_layer_size=495, final_activation_function='sigmoid',
                  learning_rate=LEARNING_RATE, weight_decay=WEIGHT_DECAY, balance_classes=False,
                  random_state=None):
         self.hidden_layer_size = hidden_layer_size
