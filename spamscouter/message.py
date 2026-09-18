@@ -4,6 +4,7 @@ from subprocess import run
 from tempfile import TemporaryDirectory
 from mimetypes import guess_extension
 from os.path import exists
+from inspect import cleandoc
 
 
 getLogger('bs4.dammit').setLevel(ERROR)
@@ -112,4 +113,15 @@ class Message:
 
     def text(self, config):
         method = MESSAGE_PROCESS_METHODS[config['message_processing_method']]
-        return method(self.email)[:config['max_message_characters']]
+        body = method(self.email)[:config['max_message_characters']]
+
+        if not config['include_visible_headers']:
+            return body
+
+        headers = cleandoc(f"""
+            From: {self.email.get('From', '')}
+            To: {self.email.get('To', '')}
+            Subject: {self.email.get('Subject', '')}
+        """) + '\n'
+
+        return headers + '\n' + body

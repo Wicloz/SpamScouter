@@ -28,6 +28,7 @@ CS.add(Categorical('message_processing_method', MESSAGE_PROCESS_METHODS.keys(), 
 CS.add(Float('vocab_size_per_message', (0, 2), default=1.5721482111031, distribution=Beta(4, 4)))
 CS.add(Integer('vocab_token_min_count', (1, 1000), default=1, log=True))
 CS.add(Integer('max_message_characters', (1000, 1000000), default=152486, log=True))
+CS.add(Categorical('include_visible_headers', (True, False), default=True))
 
 REGRESSORS = {
     'SVM': svm.SVR,
