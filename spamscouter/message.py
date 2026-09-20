@@ -4,7 +4,7 @@ from subprocess import run
 from tempfile import TemporaryDirectory
 from mimetypes import guess_extension
 from os.path import exists
-from inspect import cleandoc
+from email.header import decode_header
 
 
 getLogger('bs4.dammit').setLevel(ERROR)
@@ -111,6 +111,18 @@ class Message:
         self.uid = uid
         self.label = label
 
+    def _header(self, name):
+        if name not in self.email:
+            return None
+
+        header = ''
+        for part, encoding in decode_header(self.email[name]):
+            if isinstance(part, bytes):
+                part = part.decode(encoding or 'ASCII', errors='replace')
+            header += part
+
+        return header
+
     def text(self, config):
         method = MESSAGE_PROCESS_METHODS[config['message_processing_method']]
         body = method(self.email)[:config['max_message_characters']]
@@ -118,10 +130,10 @@ class Message:
         if not config['include_visible_headers']:
             return body
 
-        headers = cleandoc(f"""
-            From: {self.email.get('From', '')}
-            To: {self.email.get('To', '')}
-            Subject: {self.email.get('Subject', '')}
-        """) + '\n'
+        headers = ''
+        for name in ('From', 'To', 'Subject'):
+            header = self._header(name)
+            if header:
+                headers += f'{name}: {header}\n'
 
         return headers + '\n' + body
