@@ -9,6 +9,7 @@ import json
 import email
 import pickle
 from re import fullmatch, IGNORECASE
+from numpy.random import RandomState
 
 
 class SpamScouterMilter(Milter.Base):
@@ -72,7 +73,8 @@ class SpamScouterMilter(Milter.Base):
         print('>', len(text), 'characters after processing.')
 
         # convert the text to a vector
-        vector = VECTORIZER.infer_vector(TOKENIZER.encode(text).tokens)
+        VECTORIZER.random = RandomState(3639)
+        vector = VECTORIZER.infer_vector(TOKENIZER.encode(text).tokens, epochs=10)
 
         # predict the global spam probability
         spam_probability = self._spam_probability(REGRESSOR, vector)
