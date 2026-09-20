@@ -15,6 +15,12 @@ class SpamScouterMilter(Milter.Base):
         self.recipients = []
         self.message = b''
 
+    def abort(self):
+        self.__init__()
+
+        # tell the MTA to continue
+        return Milter.CONTINUE
+
     def envrcpt(self, address, *_):
         # store envelope recipients for loading models
         self.recipients.append(address)
