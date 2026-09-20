@@ -20,13 +20,12 @@ class SpamRegressorMixin(ABC):
     def predict(self, vectors):
         return np.clip(super().predict(vectors), 0, 1)
 
-    def fit(self, seed, vectors, labels):
-        super().fit(vectors, labels)
+    def _set_random_state(self, seed):
+        pass
 
-    def accuracy(self, vectors, labels):
-        predictions = self.predict(vectors)
-        predictions[labels == False] = 1 - predictions[labels == False]
-        return np.mean(predictions)
+    def fit(self, seed, vectors, labels):
+        self._set_random_state(seed)
+        super().fit(vectors, labels)
 
     @staticmethod
     def hyper_parameter_space():
