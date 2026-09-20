@@ -8,12 +8,14 @@ from .message import Message
 import json
 import email
 import pickle
+from re import fullmatch, IGNORECASE
 
 
 class SpamScouterMilter(Milter.Base):
     def __init__(self):
         self.recipients = []
         self.message = b''
+        self.existing_ss_header_count = 0
 
     def abort(self):
         self.__init__()
@@ -35,6 +37,10 @@ class SpamScouterMilter(Milter.Base):
         self.message += b': '
         self.message += value
         self.message += b'\r\n'
+
+        # count any existing SpamScouter headers
+        if fullmatch('X-SpamScouter-Probability', key, IGNORECASE):
+            self.existing_ss_header_count += 1
 
         # tell the MTA to continue
         return Milter.CONTINUE
@@ -76,9 +82,13 @@ class SpamScouterMilter(Milter.Base):
             if recipient in REGRESSORS:
                 spam_probability = self._spam_probability(REGRESSORS[recipient], vector, spam_probability)
 
+        # remove any existing SpamScouter headers
+        for idx in range(self.existing_ss_header_count, 0, -1):
+            self.chgheader('X-SpamScouter-Probability', idx, '')
+
         # add the spam probability as a header
         print('> Spam Probability:', spam_probability)
-        self.chgheader('X-SpamScouter-Probability', f'{spam_probability:f}')
+        self.addheader('X-SpamScouter-Probability', f'{spam_probability:f}')
 
         # reset instance variables, more emails could be sent over this connection
         self.__init__()
