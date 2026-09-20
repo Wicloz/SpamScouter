@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 from mimetypes import guess_extension
 from os.path import exists
 from email.header import decode_header
+from email.errors import HeaderParseError
 
 
 getLogger('bs4.dammit').setLevel(ERROR)
@@ -115,10 +116,19 @@ class Message:
         if name not in self.email:
             return None
 
+        raw = self.email[name]
+        try:
+            decoded = decode_header(raw)
+        except HeaderParseError:
+            return raw
+
         header = ''
-        for part, encoding in decode_header(self.email[name]):
+        for part, encoding in decoded:
             if isinstance(part, bytes):
-                part = part.decode(encoding or 'ASCII', errors='replace')
+                try:
+                    part = part.decode(encoding or 'ASCII', errors='replace')
+                except (LookupError, UnicodeError):
+                    part = part.decode('ASCII', errors='replace')
             header += part
 
         return header
