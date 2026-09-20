@@ -78,7 +78,7 @@ class SpamScouterMilter(Milter.Base):
 
         # add the spam probability as a header
         print('> Spam Probability:', spam_probability)
-        self.addheader('X-SpamScouter-Probability', f'{spam_probability:f}')
+        self.chgheader('X-SpamScouter-Probability', f'{spam_probability:f}')
 
         # reset instance variables, more emails could be sent over this connection
         self.__init__()
