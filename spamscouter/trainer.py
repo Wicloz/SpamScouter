@@ -214,8 +214,6 @@ class Trainer:
         train_vectors = train_vectors[:idx]
         train_labels = train_labels[:idx]
 
-        regressor = self._make_regressor(config, seed, train_vectors, train_labels)
-
         validation_length = len(self.validation_accessors)
         validation_vectors = np.empty((validation_length, config['document_vector_size']), dtype=float)
         validation_labels = np.empty(validation_length, dtype=bool)
@@ -230,4 +228,5 @@ class Trainer:
         validation_vectors = validation_vectors[:idx]
         validation_labels = validation_labels[:idx]
 
+        regressor = self._make_regressor(config, seed, train_vectors, train_labels)
         return self._regressor_brier_score(regressor, validation_vectors, validation_labels)
