@@ -8,11 +8,10 @@ from pathlib import Path
 from ConfigSpace import ConfigurationSpace, Categorical, Integer, Float, Beta, EqualsCondition
 from random import Random
 from .message import MESSAGE_PROCESS_METHODS
-from .models import NeuralNetworkRegressor
+from .models import SpamSVM, SpamNearestNeighbors, SpamNeuralNetwork
 import json
 from tqdm import trange, tqdm
 import numpy as np
-from sklearn import svm, tree, neighbors
 import pickle
 
 
@@ -31,42 +30,19 @@ CS.add(Integer('max_message_characters', (1000, 1000000), default=152486, log=Tr
 CS.add(Categorical('include_visible_headers', (True, False), default=True))
 
 REGRESSORS = {
-    'SVM': svm.SVR,
-    'DecisionTree': tree.DecisionTreeRegressor,
-    'NearestNeighbors': neighbors.KNeighborsRegressor,
-    'NeuralNetwork': NeuralNetworkRegressor,
+    'SVM': SpamSVM,
+    'NearestNeighbors': SpamNearestNeighbors,
+    'NeuralNetwork': SpamNeuralNetwork,
 }
 
 regressor_hp = Categorical('regressor_type', REGRESSORS.keys(), default='NeuralNetwork')
 CS.add(regressor_hp)
 
-HYPER_PARAMETERS = {
-    'SVM': [],
-    'DecisionTree': [],
-    'NearestNeighbors': [
-        Integer('n_neighbors', (1, 100), default=5),
-    ],
-    'NeuralNetwork': [
-        Integer('hidden_layer_size', (10, 1000), default=495, log=True),
-        Categorical('final_activation_function', NeuralNetworkRegressor.FINAL_ACTIVATION_FUNCTIONS, default='sigmoid'),
-        Float('learning_rate', (1e-5, 1e-1), default=NeuralNetworkRegressor.LEARNING_RATE, log=True),
-        Float('weight_decay', (1e-3, 1e1), default=NeuralNetworkRegressor.WEIGHT_DECAY, log=True),
-        Categorical('balance_classes', (True, False), default=False),
-    ],
-}
-
-for regressor_type, hyper_parameters in HYPER_PARAMETERS.items():
-    for hyper_parameter in hyper_parameters:
-        hyper_parameter.name = f'{regressor_type}.{hyper_parameter.name}'
+for regressor_key, regressor_class in REGRESSORS.items():
+    for hyper_parameter in regressor_class.hyper_parameter_space():
+        hyper_parameter.name = f'{regressor_key}.{hyper_parameter.name}'
         CS.add(hyper_parameter)
-        CS.add(EqualsCondition(hyper_parameter, regressor_hp, regressor_type))
-
-SEED_PARAMETERS = {
-    'SVM': None,
-    'DecisionTree': 'random_state',
-    'NearestNeighbors': None,
-    'NeuralNetwork': 'random_state',
-}
+        CS.add(EqualsCondition(hyper_parameter, regressor_hp, regressor_key))
 
 
 class Trainer:

@@ -5,6 +5,8 @@ import pickle
 from abc import ABC
 from sklearn.base import RegressorMixin, BaseEstimator
 from sklearn.utils.validation import check_is_fitted, validate_data
+from sklearn import svm, neighbors
+from ConfigSpace import Categorical, Integer, Float, EqualsCondition
 
 
 class SpamRegressorMixin(ABC):
@@ -17,22 +19,42 @@ class SpamRegressorMixin(ABC):
         with open(path, 'rb') as fp:
             return pickle.load(fp)
 
-    def predict(self, vectors):
-        return np.clip(super().predict(vectors), 0, 1)
+    def infer(self, vectors):
+        return np.clip(self.predict(vectors), 0, 1)
 
     def _set_random_state(self, seed):
         pass
 
-    def fit(self, seed, vectors, labels):
+    def train(self, seed, vectors, labels):
         self._set_random_state(seed)
-        super().fit(vectors, labels)
+        self.fit(vectors, labels)
 
-    @staticmethod
-    def hyper_parameter_space():
+    @classmethod
+    def hyper_parameter_space(cls):
         return []
 
 
-class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
+class SpamSVM(SpamRegressorMixin, svm.SVR):
+    @classmethod
+    def hyper_parameter_space(cls):
+        return [
+            Categorical('kernel', ('linear', 'poly', 'rbf', 'sigmoid'), default='rbf'),
+        ]
+
+
+class SpamNearestNeighbors(SpamRegressorMixin, neighbors.KNeighborsRegressor):
+    @classmethod
+    def hyper_parameter_space(cls):
+        n_neighbors = Integer('n_neighbors', (1, 100), default=5)
+        weights = Categorical('weights', ('uniform', 'distance'), default='uniform')
+        metric = Categorical('metric', ('euclidean', 'manhattan', 'cosine'), default='euclidean')
+
+        return [n_neighbors, weights, metric] + [
+            EqualsCondition(metric, weights, 'distance'),
+        ]
+
+
+class SpamNeuralNetwork(SpamRegressorMixin, RegressorMixin, BaseEstimator):
     FINAL_ACTIVATION_FUNCTIONS = ('sigmoid', 'linear', 'clipped')
 
     BATCH_SIZE = 100
@@ -47,6 +69,16 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
     VARIANCE_EPSILON = 1e-12
     PARAMETERS = ('W1_', 'b1_', 'W2_', 'b2_')
     DECAYED_PARAMETERS = ('W1_', 'W2_')
+
+    @classmethod
+    def hyper_parameter_space(cls):
+        return [
+            Integer('hidden_layer_size', (10, 1000), default=495, log=True),
+            Categorical('final_activation_function', cls.FINAL_ACTIVATION_FUNCTIONS, default='sigmoid'),
+            Float('learning_rate', (1e-5, 1e-1), default=cls.LEARNING_RATE, log=True),
+            Float('weight_decay', (1e-3, 1e1), default=cls.WEIGHT_DECAY, log=True),
+            Categorical('balance_classes', (True, False), default=False),
+        ]
 
     @staticmethod
     def _sigmoid(x):
@@ -82,15 +114,13 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
     def _clipped_prime(x):
         return ((x > 0) & (x < 1)).astype(x.dtype)
 
-    def __init__(self, hidden_layer_size=495, final_activation_function='sigmoid',
-                 learning_rate=LEARNING_RATE, weight_decay=WEIGHT_DECAY, balance_classes=False,
-                 random_state=None):
-        self.hidden_layer_size = hidden_layer_size
-        self.final_activation_function = final_activation_function
+    def __init__(self, learning_rate=LEARNING_RATE, weight_decay=WEIGHT_DECAY,
+                 hidden_layer_size=495, final_activation_function='sigmoid', balance_classes=False):
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
+        self.hidden_layer_size = hidden_layer_size
+        self.final_activation_function = final_activation_function
         self.balance_classes = balance_classes
-        self.random_state = random_state
 
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()
@@ -98,6 +128,9 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
         # [0, 1], so it cannot score well against sklearn's arbitrary continuous targets
         tags.regressor_tags.poor_score = True
         return tags
+
+    def _set_random_state(self, seed):
+        self.rng_ = np.random.default_rng(seed)
 
     def _initialise(self, input_size):
         if self.final_activation_function not in self.FINAL_ACTIVATION_FUNCTIONS:
@@ -113,8 +146,6 @@ class NeuralNetworkRegressor(RegressorMixin, BaseEstimator):
                 'learning_rate * weight_decay must be below 1, got '
                 f'{self.learning_rate} * {self.weight_decay} = {self.learning_rate * self.weight_decay}'
             )
-
-        self.rng_ = np.random.default_rng(self.random_state)
 
         self.W1_ = self.rng_.normal(size=(self.hidden_layer_size, input_size)) * np.sqrt(2 / input_size)
         self.b1_ = np.zeros((self.hidden_layer_size, 1))
