@@ -7,8 +7,8 @@ from shutil import move, rmtree
 from pathlib import Path
 from ConfigSpace import ConfigurationSpace, Categorical, Integer, Float, Beta
 from random import Random
-from .message import MESSAGE_PROCESS_METHODS
 from .models import SpamSVM, SpamNearestNeighbors, SpamNeuralNetwork
+from .message import MESSAGE_PROCESS_METHODS, infer_vector
 import json
 from tqdm import trange, tqdm
 import numpy as np
@@ -128,7 +128,7 @@ class Trainer:
 
                     for message in connector.iterate_messages_for_user(recipient):
                         if message.label is not None:
-                            global_vectors[idx] = vectorizer.infer_vector(tokenizer.encode(message.text(config)).tokens)
+                            global_vectors[idx] = infer_vector(tokenizer, vectorizer, message.text(config))
                             global_labels[idx] = message.label
                             idx += 1
                         progress.update(1)
@@ -200,7 +200,7 @@ class Trainer:
 
         for message in tqdm(train_message_iterator(), total=budget, desc='Converting training accessors'):
             if message.label is not None:
-                train_vectors[idx] = vectorizer.infer_vector(tokenizer.encode(message.text(config)).tokens)
+                train_vectors[idx] = infer_vector(tokenizer, vectorizer, message.text(config))
                 train_labels[idx] = message.label
                 idx += 1
 
@@ -214,7 +214,7 @@ class Trainer:
 
         for message in tqdm(connector.fetch_messages_for_accessors(self.validation_accessors), total=validation_length, desc='Converting validation accessors'):
             if message.label is not None:
-                validation_vectors[idx] = vectorizer.infer_vector(tokenizer.encode(message.text(config)).tokens)
+                validation_vectors[idx] = infer_vector(tokenizer, vectorizer, message.text(config))
                 validation_labels[idx] = message.label
                 idx += 1
 

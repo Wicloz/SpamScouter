@@ -6,6 +6,7 @@ from mimetypes import guess_extension
 from os.path import exists
 from email.header import decode_header
 from email.errors import HeaderParseError
+from numpy.random import RandomState
 
 
 getLogger('bs4.dammit').setLevel(ERROR)
@@ -104,6 +105,11 @@ MESSAGE_PROCESS_METHODS = {
     'body_cleaned': _body_but_cleaned,
     'body_unicode': _body_but_unicode,
 }
+
+
+def infer_vector(tokenizer, vectorizer, text):
+    vectorizer.random = RandomState(676767)
+    return vectorizer.infer_vector(tokenizer.encode(text).tokens, epochs=10)
 
 
 class Message:

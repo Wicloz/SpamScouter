@@ -4,12 +4,11 @@ from tokenizers import Tokenizer
 from gensim.models.doc2vec import Doc2Vec
 from argparse import ArgumentParser
 from pathlib import Path
-from .message import Message
+from .message import Message, infer_vector
 import json
 import email
 import pickle
 from re import fullmatch, IGNORECASE
-from numpy.random import RandomState
 
 
 class SpamScouterMilter(Milter.Base):
@@ -73,8 +72,7 @@ class SpamScouterMilter(Milter.Base):
         print('>', len(text), 'characters after processing.')
 
         # convert the text to a vector
-        VECTORIZER.random = RandomState(3639)
-        vector = VECTORIZER.infer_vector(TOKENIZER.encode(text).tokens, epochs=10)
+        vector = infer_vector(TOKENIZER, VECTORIZER, text)
 
         # predict the global spam probability
         spam_probability = self._spam_probability(REGRESSOR, vector)
