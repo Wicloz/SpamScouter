@@ -5,7 +5,7 @@ from collections import Counter
 from tempfile import TemporaryDirectory
 from shutil import move, rmtree
 from pathlib import Path
-from ConfigSpace import ConfigurationSpace, Categorical, Integer, Float, Beta, EqualsCondition
+from ConfigSpace import ConfigurationSpace, Categorical, Integer, Float, Beta
 from random import Random
 from .message import MESSAGE_PROCESS_METHODS
 from .models import SpamSVM, SpamNearestNeighbors, SpamNeuralNetwork
@@ -39,10 +39,8 @@ regressor_hp = Categorical('regressor_type', REGRESSORS.keys(), default='NeuralN
 CS.add(regressor_hp)
 
 for regressor_key, regressor_class in REGRESSORS.items():
-    for hyper_parameter in regressor_class.hyper_parameter_space():
-        hyper_parameter.name = f'{regressor_key}.{hyper_parameter.name}'
-        CS.add(hyper_parameter)
-        CS.add(EqualsCondition(hyper_parameter, regressor_hp, regressor_key))
+    CS.add_configuration_space(regressor_key, regressor_class.configuration_space(), delimiter='.',
+                               parent_hyperparameter={'parent': regressor_hp, 'value': regressor_key})
 
 
 class Trainer:
@@ -77,18 +75,13 @@ class Trainer:
 
     def _make_regressor(self, config, seed, vectors, labels):
         kwargs = {}
-
-        seed_parameter = SEED_PARAMETERS[config['regressor_type']]
-        if seed is not None and seed_parameter is not None:
-            kwargs[seed_parameter] = seed
-
         prefix = config['regressor_type'] + '.'
         for key, value in config.items():
             if key.startswith(prefix):
                 kwargs[key[len(prefix):]] = value
 
         regressor = REGRESSORS[config['regressor_type']](**kwargs)
-        regressor.fit(vectors, labels)
+        regressor.train(seed, vectors, labels)
 
         return regressor
 

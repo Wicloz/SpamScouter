@@ -6,7 +6,7 @@ from abc import ABC
 from sklearn.base import RegressorMixin, BaseEstimator
 from sklearn.utils.validation import check_is_fitted, validate_data
 from sklearn import svm, neighbors
-from ConfigSpace import Categorical, Integer, Float, EqualsCondition
+from ConfigSpace import ConfigurationSpace, Categorical, Integer, Float
 
 
 class SpamRegressorMixin(ABC):
@@ -30,28 +30,26 @@ class SpamRegressorMixin(ABC):
         self.fit(vectors, labels)
 
     @classmethod
-    def hyper_parameter_space(cls):
-        return []
+    def configuration_space(cls):
+        return ConfigurationSpace()
 
 
 class SpamSVM(SpamRegressorMixin, svm.SVR):
     @classmethod
-    def hyper_parameter_space(cls):
-        return [
+    def configuration_space(cls):
+        return ConfigurationSpace(space=[
             Categorical('kernel', ('linear', 'poly', 'rbf', 'sigmoid'), default='rbf'),
-        ]
+        ])
 
 
 class SpamNearestNeighbors(SpamRegressorMixin, neighbors.KNeighborsRegressor):
     @classmethod
-    def hyper_parameter_space(cls):
-        n_neighbors = Integer('n_neighbors', (1, 100), default=5)
-        weights = Categorical('weights', ('uniform', 'distance'), default='uniform')
-        metric = Categorical('metric', ('euclidean', 'manhattan', 'cosine'), default='euclidean')
-
-        return [n_neighbors, weights, metric] + [
-            EqualsCondition(metric, weights, 'distance'),
-        ]
+    def configuration_space(cls):
+        return ConfigurationSpace(space=[
+            Integer('n_neighbors', (1, 100), default=5),
+            Categorical('weights', ('uniform', 'distance'), default='uniform'),
+            Categorical('metric', ('euclidean', 'manhattan', 'cosine'), default='euclidean'),
+        ])
 
 
 class SpamNeuralNetwork(SpamRegressorMixin, RegressorMixin, BaseEstimator):
@@ -71,14 +69,14 @@ class SpamNeuralNetwork(SpamRegressorMixin, RegressorMixin, BaseEstimator):
     DECAYED_PARAMETERS = ('W1_', 'W2_')
 
     @classmethod
-    def hyper_parameter_space(cls):
-        return [
+    def configuration_space(cls):
+        return ConfigurationSpace(space=[
             Integer('hidden_layer_size', (10, 1000), default=495, log=True),
             Categorical('final_activation_function', cls.FINAL_ACTIVATION_FUNCTIONS, default='sigmoid'),
             Float('learning_rate', (1e-5, 1e-1), default=cls.LEARNING_RATE, log=True),
             Float('weight_decay', (1e-3, 1e1), default=cls.WEIGHT_DECAY, log=True),
             Categorical('balance_classes', (True, False), default=False),
-        ]
+        ])
 
     @staticmethod
     def _sigmoid(x):
