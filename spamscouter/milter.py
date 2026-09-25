@@ -9,12 +9,13 @@ import json
 import email
 import pickle
 from re import fullmatch, IGNORECASE
+from io import BytesIO
 
 
 class SpamScouterMilter(Milter.Base):
     def __init__(self):
         self.recipients = []
-        self.message = b''
+        self.message = BytesIO()
         self.existing_ss_header_count = 0
 
     def abort(self):
@@ -33,10 +34,10 @@ class SpamScouterMilter(Milter.Base):
     @decode('bytes')
     def header(self, key, value):
         # add header to the reconstituted message
-        self.message += key.encode('ascii')
-        self.message += b': '
-        self.message += value
-        self.message += b'\r\n'
+        self.message.write(key.encode('ascii'))
+        self.message.write(b': ')
+        self.message.write(value)
+        self.message.write(b'\r\n')
 
         # count any existing SpamScouter headers
         if fullmatch('X-SpamScouter-Probability', key, IGNORECASE):
@@ -47,14 +48,14 @@ class SpamScouterMilter(Milter.Base):
 
     def eoh(self):
         # add a blank line to the reconstituted message
-        self.message += b'\r\n'
+        self.message.write(b'\r\n')
 
         # tell the MTA to continue
         return Milter.CONTINUE
 
     def body(self, chunk):
         # add body chunk to the reconstituted message
-        self.message += chunk
+        self.message.write(chunk)
 
         # tell the MTA to continue
         return Milter.CONTINUE
@@ -68,7 +69,8 @@ class SpamScouterMilter(Milter.Base):
         print('Processing email for recipients:', self.recipients)
 
         # convert the message to text
-        text = Message(email.message_from_bytes(self.message), None, None).text(CONFIG)
+        self.message.seek(0)
+        text = Message(email.message_from_binary_file(self.message), None, None).text(CONFIG)
         print('>', len(text), 'characters after processing.')
 
         # convert the text to a vector
