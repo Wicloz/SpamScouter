@@ -23,6 +23,7 @@ CONNECTORS = {
 
 CS = ConfigurationSpace()
 CS.add(Integer('document_vector_size', (100, 1000), default=938))
+CS.add(Categorical('doc2vec_dm', (True, False), default=False))
 CS.add(Categorical('message_processing_method', MESSAGE_PROCESS_METHODS.keys(), default='unicode'))
 CS.add(Float('vocab_size_per_message', (0, 2), default=1.5721482111031, distribution=Beta(4, 4)))
 CS.add(Integer('vocab_token_min_count', (1, 1000), default=1, log=True))
@@ -58,7 +59,7 @@ class Trainer:
         if seed is not None:
             seed_kwargs['seed'] = seed
             seed_kwargs['workers'] = 1
-        vectorizer = Doc2Vec(epochs=1, vector_size=config['document_vector_size'], min_count=config['vocab_token_min_count'], **seed_kwargs)
+        vectorizer = Doc2Vec(epochs=1, dm=config['doc2vec_dm'], vector_size=config['document_vector_size'], min_count=config['vocab_token_min_count'], **seed_kwargs)
 
         frequencies = Counter()
         for message in tqdm(message_iterator_fn(), total=message_count_fn(), desc='Building vocabulary'):

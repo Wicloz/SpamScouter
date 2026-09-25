@@ -46,7 +46,7 @@ class SpamNearestNeighbors(SpamRegressorMixin, neighbors.KNeighborsRegressor):
     @classmethod
     def configuration_space(cls):
         return ConfigurationSpace(space=[
-            Integer('n_neighbors', (1, 100), default=5),
+            Integer('n_neighbors', (1, 100), default=5, log=True),
             Categorical('weights', ('uniform', 'distance'), default='uniform'),
             Categorical('metric', ('euclidean', 'manhattan', 'cosine'), default='euclidean'),
         ])
