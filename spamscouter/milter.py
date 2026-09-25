@@ -119,7 +119,7 @@ if __name__ == '__main__':
     for pickle_file_path in args.model_store_dir.glob('*/regressor.pkl'):
         with open(pickle_file_path, 'rb') as fp:
             regressor = pickle.load(fp)
-        REGRESSORS[pickle_file_path.parent.name] = regressor
+        REGRESSORS[f'<{pickle_file_path.parent.name}>'] = regressor
 
     Milter.factory = SpamScouterMilter
     print('Done loading models, starting SpamScouter milter ...')
