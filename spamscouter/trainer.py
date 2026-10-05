@@ -22,12 +22,12 @@ CONNECTORS = {
 
 
 CS = ConfigurationSpace()
-CS.add(Integer('document_vector_size', (100, 1000), default=938))
-CS.add(Categorical('doc2vec_dm', (True, False), default=False))
+CS.add(Integer('document_vector_size', (100, 1000), default=218))
+CS.add(Categorical('doc2vec_dm', (True, False), default=True))
 CS.add(Categorical('message_processing_method', MESSAGE_PROCESS_METHODS.keys(), default='unicode'))
-CS.add(Float('vocab_size_per_message', (0, 2), default=1.5721482111031, distribution=Beta(4, 4)))
-CS.add(Integer('vocab_token_min_count', (1, 1000), default=1, log=True))
-CS.add(Integer('max_message_characters', (1000, 1000000), default=152486, log=True))
+CS.add(Float('vocab_size_per_message', (0, 2), default=1.6055218033713, distribution=Beta(4, 4)))
+CS.add(Integer('vocab_token_min_count', (1, 1000), default=371, log=True))
+CS.add(Integer('max_message_characters', (1000, 1000000), default=44698, log=True))
 CS.add(Categorical('include_visible_headers', (True, False), default=True))
 
 REGRESSORS = {
@@ -36,7 +36,7 @@ REGRESSORS = {
     'NeuralNetwork': SpamNeuralNetwork,
 }
 
-regressor_hp = Categorical('regressor_type', REGRESSORS.keys(), default='NeuralNetwork')
+regressor_hp = Categorical('regressor_type', REGRESSORS.keys(), default='NearestNeighbors')
 CS.add(regressor_hp)
 
 for regressor_key, regressor_class in REGRESSORS.items():
